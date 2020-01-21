@@ -11,12 +11,12 @@ end = "mm/dd/YYYY"
 # REDCap API uri 
 rc_uri = "https://redcap.ictr.wisc.edu/api/"
 # REDCap API Token for Publication Tracking project
-rc_token = "EB33F3BA330B93841E6C848C1827CBB6"
+rc_token = "F174B46CCF8B562DB25507CC5B229DD8"
 
 # MyNCBI Login 
 ncbi_login = "ictreval"
 # MyNCBI Password
-ncbi_pass = "ictrtrackingfun"
+ncbi_pass = ""
 
 # NCBI API Key 
 ncbi_api = "66b67c02832e95b3d85135ead126e8f50808"
