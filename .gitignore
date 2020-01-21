@@ -1,0 +1,5 @@
+# Config file with api keys and tokens
+config.py
+
+# Debugging log
+*.log
