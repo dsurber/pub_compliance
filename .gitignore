@@ -3,3 +3,6 @@
 
 # Debugging log
 *.log
+
+*.csv
+
