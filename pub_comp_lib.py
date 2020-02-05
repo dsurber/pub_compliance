@@ -95,6 +95,7 @@ def details(pub, variations):
     authors_initials = []
     authors_fnames = []
     authors_affil = []
+    authors_orcid = []
 
     # split into xml batches of author info
     author_list = re.split('<Author Valid', pub)
@@ -121,6 +122,11 @@ def details(pub, variations):
                                            author_list[x]).group(1))
         else:
             authors_affil.append('')
+        if re.search('Identifier Source="ORCID">', author_list[x]) is not None:
+            authors_orcid.append(re.search('Identifier Source="ORCID">(.*?)</Identifier>',
+                                            author_list[x]).group(1))
+        else:
+            authors_orcid.append('')
     # combine fname and lname to get full list of author names
     authors = [i+' '+j for i, j in zip(authors_fnames, authors_lnames)]
 
@@ -128,6 +134,7 @@ def details(pub, variations):
     authors_fnames = ', '.join(authors_fnames)
     authors_initials = ', '.join(authors_initials)
     authors_affil = ', '.join(authors_affil)
+    authors_orcid = ', '.join(authors_orcid)
     authors = ', '.join(authors)
 
 
@@ -205,7 +212,7 @@ def details(pub, variations):
     pubmed_tags = ', '.join(pubmed_tags)
 
     row = [pmid, pmcid, nihmsid,  nctid, pub_title, authors,
-            authors_lnames, authors_initials, authors_affil,
+            authors_lnames, authors_initials, authors_orcid, authors_affil,
             pub_date, journal_short, journal_full, pubmed_tags]
 
     return row
@@ -284,7 +291,7 @@ def summary(pmids, ncbi_key, grants):
 	pubs_frame = pd.DataFrame(rows, columns=[
 	                          'pmid', 'pmcid', 'nihmsid',  'nctid', 'pub_title',
 	                          'authors', 'authors_lnames', 'authors_initials',
-	                          'authors_affil', 'pub_date', 'journal_short',
+	                          'orcid', 'authors_affil', 'pub_date', 'journal_short',
 	                          'journal_full', 'pubmed_tags'])
 
 	return pubs_frame
