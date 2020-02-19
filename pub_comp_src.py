@@ -157,6 +157,12 @@ pubs_frame[pubs_frame == ''] = np.nan
 #pub_comp = pub_comp.drop(['nihmsid_x', 'nihmsid_y','pmcid_x', 'pmcid_y'], axis=1)
 ###################### END NIHMS Section
 
+###################### PACM Public Access Compliance Monitor for NIHMS status
+if config.pacm == 'y':
+    
+
+###################### END PACM Section
+
 ## UNTIL NIHMS IS FIXED
 pub_comp = pubs_frame
 pub_comp = pub_comp.rename(columns={'pmcid':'pmc_id', 'nihmsid': 'nihms_id'})
