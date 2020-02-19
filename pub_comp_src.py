@@ -125,36 +125,42 @@ pubs_frame[pubs_frame == ''] = np.nan
 
 ###################### END PMC Section
 
-
+###################### Start NIHMS Section
 # get list of publications with during current grant cycle with no pmcid to check on
 # nihms status
-pubs_frame['pub_date'] = pd.to_datetime(pubs_frame['pub_date'], format='%Y-%m-%d')
-config.start = datetime.strptime(config.start, '%m/%d/%Y')
-check_status = pubs_frame.pmid[(pubs_frame.pub_date > config.start) & (pubs_frame.pmcid.isnull())]
+#pubs_frame['pub_date'] = pd.to_datetime(pubs_frame['pub_date'], format='%Y-%m-%d')
+#config.start = datetime.strptime(config.start, '%m/%d/%Y')
+#check_status = pubs_frame.pmid[(pubs_frame.pub_date > config.start) & (pubs_frame.pmcid.isnull())]
 
 
 ### Check NIHMS status
-nihms_frame = pub_comp_lib.get_nihms(check_status, config.ncbi_login, config.ncbi_pass)
-nihms_frame.to_csv('batch_nihms_status.csv', index=False)
+#nihms_frame = pub_comp_lib.get_nihms(check_status, config.ncbi_login, config.ncbi_pass)
+#nihms_frame.to_csv('batch_nihms_status.csv', index=False)
 
 # change blank values to nan- makes column merging easier
-nihms_frame[nihms_frame == ''] = np.nan
+#nihms_frame[nihms_frame == ''] = np.nan
 
 ### Merge the dataframes for final report
 #pub_comp = pd.merge(pubs_frame, pmc_frame, on='pmid', how='outer').merge(nihms_frame, on='pmid', how='outer')
-pub_comp = pd.merge(pubs_frame, nihms_frame, on='pmid', how='outer')
+#pub_comp = pd.merge(pubs_frame, nihms_frame, on='pmid', how='outer')
 
 
 # include nihms ids from all dataframes into a final column
-pub_comp['nihms_id'] = pub_comp['nihmsid_x'].combine_first(pub_comp['nihmsid_y'])
-pub_comp['nihms_id'] = pub_comp['nihmsid_y'].combine_first(pub_comp['nihms_id'])
+#pub_comp['nihms_id'] = pub_comp['nihmsid_x'].combine_first(pub_comp['nihmsid_y'])
+#pub_comp['nihms_id'] = pub_comp['nihmsid_y'].combine_first(pub_comp['nihms_id'])
 
 # include pmc ids from all dataframes into a final column
-pub_comp['pmc_id'] = pub_comp['pmcid_x'].combine_first(pub_comp['pmcid_y'])
-pub_comp['pmc_id'] = pub_comp['pmcid_y'].combine_first(pub_comp['pmc_id'])
+#pub_comp['pmc_id'] = pub_comp['pmcid_x'].combine_first(pub_comp['pmcid_y'])
+#pub_comp['pmc_id'] = pub_comp['pmcid_y'].combine_first(pub_comp['pmc_id'])
 
 # remove columns now that pmc and nihms ids have been merged
-pub_comp = pub_comp.drop(['nihmsid_x', 'nihmsid_y','pmcid_x', 'pmcid_y'], axis=1)
+#pub_comp = pub_comp.drop(['nihmsid_x', 'nihmsid_y','pmcid_x', 'pmcid_y'], axis=1)
+###################### END NIHMS Section
+
+## UNTIL NIHMS IS FIXED
+pub_comp = pubs_frame
+pub_comp = pub_comp.rename(columns={'pmcid':'pmc_id', 'nihmsid': 'nihms_id'})
+## DELETE WHEN NIHMS IS FIXED
 
 pub_comp.to_csv('batch_comprehensive_status.csv', index=False)
 
