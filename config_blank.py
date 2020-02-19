@@ -26,3 +26,9 @@ method_a = "http://www.ncbi.nlm.nih.gov/pmc/front-page/NIH_PA_journal_list.csv"
 
 # PACM Access?
 pacm = 'n'
+
+# eRA Commons Login
+era_login = ''
+
+# eRA Commons Password
+era_pass = ''
