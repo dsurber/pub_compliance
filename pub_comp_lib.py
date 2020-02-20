@@ -14,6 +14,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 
 def clean(grant):
 	#	remove all whitespace
@@ -614,3 +615,89 @@ def get_nihms(pmids, login, password):
                                 'reviewer': reviewer
                                 })
     return nihms_frame
+
+
+def era_signin(era_login, era_password):
+    # set chrome driver options to headless
+    options = Options()
+    #options.headless = True
+    
+    # Using Chrome to access web and switch to headless driver
+    driver = webdriver.Chrome(options=options)
+    
+    # navigate to eRA Commons and log in
+    era_url = 'https://commons.era.nih.gov/'
+    driver.get(era_url)
+    driver.set_window_size(1440, 900) 
+    id_box = driver.find_element_by_id('USER').send_keys(era_login)
+    pass_box = driver.find_element_by_id('PASSWORD').send_keys(era_password)
+    login_button = driver.find_element_by_name('submit').click()
+    return driver
+
+
+def nihms_signin(login, password):
+    # set chrome driver options to headless
+    options = Options()
+    options.headless = True
+
+    # Using Chrome to access web and switch to headless driver
+    driver = webdriver.Chrome(options=options)
+
+    # Enter URL
+    url = 'https://www.nihms.nih.gov/db/sub.cgi?login=myNCBI'
+
+    # Open the website
+    driver.get(url)
+
+    # Increase the headless window so buttons are in window
+    driver.set_window_size(1440, 900)
+
+    # switch to frame
+    driver.switch_to.frame('loginframe')
+
+    # Find NCBI login button and click
+    ncbi_log = driver.find_element_by_id('show_ncbi_login')
+    ncbi_log.click()
+
+    # Find username box
+    id_box = driver.find_element_by_id('uname')
+
+    # Send id information
+    id_box.send_keys(login)
+
+    # Find password box
+    pass_box = driver.find_element_by_name('upasswd')
+
+    # Send password
+    pass_box.send_keys(password)
+
+    # Find login button
+    login_button = driver.find_element_by_name('signinBtn')
+    # Click login
+    login_button.click()
+
+    return driver
+
+
+def pacm_login(login, password):
+    # set chrome driver options to headless
+    options = Options()
+    options.headless = True
+    driver = webdriver.Chrome()
+    driver.get('https://auth.nih.gov/CertAuthV2/forms/NIHPivOrFormLogin.aspx')
+    driver.set_window_size(1440, 900)
+    id_box = driver.find_element_by_id('USER').send_keys(login)
+    pass_box = driver.find_element_by_id('PASSWORD').send_keys(password)
+    login_button = driver.find_element_by_id('Image2').click()
+
+    driver.get('https://www.ncbi.nlm.nih.gov/pmc/utils/pacm/')
+
+    driver.find_element_by_xpath('//*[@id="content"]/div/ul/li/a').click()
+    driver.switch_to.frame('loginframe')
+    driver.find_element_by_xpath('//*[@id="era"]/img').click()
+    clear_text(driver.find_element_by_name('USER'))
+    login_box = driver.find_element_by_name('USER').send_keys(login)
+    pass_box = driver.find_element_by_name('PASSWORD').send_keys(password)
+    login_button = driver.find_element_by_xpath('//*[@id="Image2"]').click()
+    return driver
+
