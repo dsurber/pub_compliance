@@ -720,7 +720,7 @@ def parse_pacm(driver, pacm_root, pmid, grant_list):
     
     if re.search('An error has occurred.', soup.text) is not None:
         nihms_status = 'error: pmid not found'
-        associated_grants = ''
+        pacm_grants = ''
 
     else:
         table = soup.find_all('table')[2].text
@@ -754,17 +754,17 @@ def parse_pacm(driver, pacm_root, pmid, grant_list):
             latest_actor = re.search('Latest: (.*?)\n', clean_table).group(1)
 
         if re.search('Associated grants(.*?)Article source:', clean_table) is not None:
-            associated_grants = re.search('Associated grants(.*?)Article source:', clean_table).group(1)
+            pacm_grants = re.search('Associated grants(.*?)Article source:', clean_table).group(1)
         else:
-            associated_grants = 'not parsed'
+            pacm_grants = 'not parsed'
 
-        if initial_approval == '':
-            nihms_comm = '2'
+        if tagging_complete =='':
+            nihms_comm = '4'
         elif final_approval == '':
             nihms_comm = '3'
-        elif tagging_complete =='':
-            nihms_comm = '4'
+        elif initial_approval == '':
+            nihms_comm = '2'
 
-    row = [pmid, nihms_id, nihms_status, nihms_comm, journal_method, files_deposited, initial_approval, tagging_complete, final_approval, initial_actor, latest_actor, associated_grants]
+    row = [pmid, nihms_id, nihms_status, nihms_comm, journal_method, files_deposited, initial_approval, tagging_complete, final_approval, initial_actor, latest_actor, pacm_grants]
 
     return row

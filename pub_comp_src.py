@@ -175,7 +175,7 @@ if config.pacm == 'y':
     pacm_frame = pd.DataFrame(pacm_rows, columns=['pmid', 'nihms_id', 'nihms_status', 
                                                   'nihms_comm', 'journal_method', 'files_deposited', 
                                                   'initial_approval', 'tagging_complete', 'final_approval', 
-                                                  'initial_actor', 'latest_actor', 'associated_grants'])
+                                                  'initial_actor', 'latest_actor', 'pacm_grants'])
     driver.quit()
 ###################### END PACM Section
 
@@ -189,14 +189,14 @@ pub_comp['nihms_id'] = pub_comp['nihms_id_y'].combine_first(pub_comp['nihms_id']
 # remove columns now that pmc and nihms ids have been merged
 pub_comp = pub_comp.drop(['nihms_id_x', 'nihms_id_y'], axis=1)
 
-#pub_comp.loc[np.isnan(pub_comp['pmc_id']), 'nihms_comm'] = '5'
+
 pub_comp.loc[pub_comp['pmc_id'].isnull() == False, 'nihms_comm'] = '5'
 pub_comp.loc[pub_comp['nihms_status'] == 'Excluded', 'nihms_comm'] = '6'
 
 pub_comp.to_csv('batch_comprehensive_status.csv', index=False)
 
 ### Update REDCap project if one is being used to track publications
-#if config.rc_token is not None and config.rc_uri is not None and len(pmids) < 5000:
-#    success = project.import_records(pub_comp)
+if config.rc_token is not None and config.rc_uri is not None and len(pmids) < 5000:
+    success = project.import_records(pub_comp)
 
 print('Publication compliance status update process complete in {0:0.1f} minutes' .format((time.time()-start)/60))
