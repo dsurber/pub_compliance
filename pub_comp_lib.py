@@ -707,7 +707,6 @@ def parse_pacm(driver, pacm_root, pmid, grant_list):
     driver.get(pacm_root+pmid)
     soup = BeautifulSoup(driver.page_source, 'lxml')
 
-    nihms_comm = '1'
     nihms_id = ''
     nihms_status = ''
     journal_method = ''
@@ -734,31 +733,19 @@ def parse_pacm(driver, pacm_root, pmid, grant_list):
 
         if re.search('Method A journal: (.*?)\n', clean_table) is not None:
             journal_method = re.search('Method A journal: (.*?)\n', clean_table).group(1).strip()
-            if journal_method == 'Yes':
-                journal_method = '1'
-            elif re.search('No', journal_method):
-                journal_method = '0'
 
         if re.search('Files deposited: (.*?)I', clean_table) is not None:
             files_deposited = re.search('Files deposited: (.*?)I', clean_table).group(1)
-            if files_deposited is not '': 
-                files_deposited = datetime.datetime.strptime(files_deposited, "%m/%d/%y").strftime("%Y-%m-%d")
-
+            
         if re.search('Initial approval: (.*?)T', clean_table) is not None:
             initial_approval = re.search('Initial approval: (.*?)T', clean_table).group(1)
-            if initial_approval is not '':
-                initial_approval = datetime.datetime.strptime(initial_approval, "%m/%d/%y").strftime("%Y-%m-%d")
-
+            
         if re.search('Tagging complete: (.*?)F', clean_table) is not None:
             tagging_complete = re.search('Tagging complete: (.*?)F', clean_table).group(1)
-            if tagging_complete is not '':
-                tagging_complete = datetime.datetime.strptime(tagging_complete, "%m/%d/%y").strftime("%Y-%m-%d")
-
+            
         if re.search('Final approval: (.*?)\n', clean_table) is not None:
             final_approval = re.search('Final approval: (.*?)\n', clean_table).group(1)
-            if final_approval is not '':
-                final_approval = datetime.datetime.strptime(final_approval, "%m/%d/%y").strftime("%Y-%m-%d")
-
+            
         if re.search('Initial actor: (.*?)\n', clean_table) is not None:
             initial_actor = re.search('Initial actor: (.*?)\n', clean_table).group(1)
 
@@ -770,18 +757,44 @@ def parse_pacm(driver, pacm_root, pmid, grant_list):
         else:
             pacm_grants = 'not parsed'
 
-        if files_deposited == '':
-            nihms_comm = '1' 
-        elif initial_approval == '':
-            nihms_comm = '2'
-        elif final_approval == '':
-            nihms_comm = '3'
-        elif tagging_complete == '':
-            nihms_comm = '4'
-
-        if nihms_status == 'Compliant':
-            nihms_comm = '5'
-
-    row = [pmid, nihms_id, nihms_status, nihms_comm, journal_method, files_deposited, initial_approval, tagging_complete, final_approval, initial_actor, latest_actor, pacm_grants]
+    row = [pmid, nihms_id, nihms_status, journal_method, files_deposited, initial_approval, tagging_complete, final_approval, initial_actor, latest_actor, pacm_grants]
 
     return row
+
+
+def RC_update_status(pub_comp):
+    if files_deposited == '':
+        nihms_comm = '1' 
+    elif initial_approval == '':
+        nihms_comm = '2'
+    elif final_approval == '':
+        nihms_comm = '3'
+    elif tagging_complete == '':
+        nihms_comm = '4'
+
+    if nihms_status == 'Compliant':
+        nihms_comm = '5'
+
+    if journal_method == 'Yes':
+        journal_method = '1'
+    elif re.search('No', journal_method):
+        journal_method = '0'
+
+    if files_deposited is not '': 
+        files_deposited = datetime.datetime.strptime(files_deposited, "%m/%d/%y").strftime("%Y-%m-%d")
+
+    if initial_approval is not '':
+        initial_approval = datetime.datetime.strptime(initial_approval, "%m/%d/%y").strftime("%Y-%m-%d")
+
+    if final_approval is not '':
+        final_approval = datetime.datetime.strptime(final_approval, "%m/%d/%y").strftime("%Y-%m-%d")
+
+    if tagging_complete is not '':
+        tagging_complete = datetime.datetime.strptime(tagging_complete, "%m/%d/%y").strftime("%Y-%m-%d")
+
+    pub_comp.loc[pub_comp['pmc_id'].isnull() == False, 'nihms_comm'] = '5'
+    pub_comp.loc[pub_comp['nihms_status'] == 'Excluded', 'nihms_comm'] = '6'
+    pub_comp.loc[pub_comp['nihms_status'] == 'Excluded', 'author_excluded'] = '1'
+
+    return pub_comp
+    
