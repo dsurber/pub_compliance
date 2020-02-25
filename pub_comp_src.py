@@ -89,9 +89,9 @@ if config.rc_token is not None and config.rc_uri is not None:
         # create data frame of new_pmids with date of first dicovery and
         # import into REDCap project
         # create data frame using lists and import into redcap
-        data = pd.DataFrame(np.column_stack([new_pmids, first_disc]),
+        first_discovered_frame = pd.DataFrame(np.column_stack([new_pmids, first_disc]),
                             columns=['pmid', 'first_discovered'])
-        response = project.import_records(data)
+        response = project.import_records(first_discovered_frame)
 
 ### Get table of publication details from pubmed for pmids
 # make dataframe of publications
@@ -158,20 +158,45 @@ pubs_frame[pubs_frame == ''] = np.nan
 ###################### END NIHMS Section
 
 ###################### PACM Public Access Compliance Monitor for NIHMS status
-if config.pacm == 'y':
-    
+# establish the root of the pacm publication url
+pacm_root = 'https://www.ncbi.nlm.nih.gov/pmc/utils/pacm/l/'
 
+if config.pacm == 'y':
+    driver = pub_comp_lib.pacm_login(config.era_login, config.era_pass)
+    time.sleep(3)
+    
+    # get list of publications with during current grant cycle with no pmcid to check on
+    # nihms status
+    pubs_frame['pub_date'] = pd.to_datetime(pubs_frame['pub_date'], format='%Y-%m-%d')
+    #config.start = datetime.strptime(config.start, '%m/%d/%Y')
+    check_status = pubs_frame.pmid[(pubs_frame.pub_date > config.start) & (pubs_frame.pmcid.isnull())]
+    
+    pacm_rows = [pub_comp_lib.parse_pacm(driver, pacm_root, x, variations) for x in check_status]
+    pacm_frame = pd.DataFrame(pacm_rows, columns=['pmid', 'nihms_id', 'nihms_status', 
+                                                  'nihms_comm', 'journal_method', 'files_deposited', 
+                                                  'initial_approval', 'tagging_complete', 'final_approval', 
+                                                  'initial_actor', 'latest_actor', 'associated_grants'])
+    driver.quit()
 ###################### END PACM Section
 
-## UNTIL NIHMS IS FIXED
-pub_comp = pubs_frame
-pub_comp = pub_comp.rename(columns={'pmcid':'pmc_id', 'nihmsid': 'nihms_id'})
-## DELETE WHEN NIHMS IS FIXED
+
+pub_comp = pubs_frame.rename(columns={'pmcid':'pmc_id', 'nihmsid': 'nihms_id'})
+
+pub_comp = pd.merge(pub_comp, pacm_frame, on='pmid', how='outer')
+# include nihms ids from all dataframes into a final column
+pub_comp['nihms_id'] = pub_comp['nihms_id_x'].combine_first(pub_comp['nihms_id_y'])
+pub_comp['nihms_id'] = pub_comp['nihms_id_y'].combine_first(pub_comp['nihms_id'])
+# remove columns now that pmc and nihms ids have been merged
+pub_comp = pub_comp.drop(['nihms_id_x', 'nihms_id_y'], axis=1)
+
+#pub_comp.loc[np.isnan(pub_comp['pmc_id']), 'nihms_comm'] = '5'
+pub_comp.loc[pub_comp['pmc_id'].isnull() == False, 'nihms_comm'] = '5'
+pub_comp.loc[pub_comp['nihms_status'] == 'Excluded', 'nihms_comm'] = '6'
 
 pub_comp.to_csv('batch_comprehensive_status.csv', index=False)
 
 ### Update REDCap project if one is being used to track publications
-if config.rc_token is not None and config.rc_uri is not None and len(pmids) < 5000:
-    success = project.import_records(pub_comp)
+#if config.rc_token is not None and config.rc_uri is not None and len(pmids) < 5000:
+#    success = project.import_records(pub_comp)
 
 print('Publication compliance status update process complete in {0:0.1f} minutes' .format((time.time()-start)/60))

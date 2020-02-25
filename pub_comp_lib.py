@@ -7,7 +7,8 @@ import time
 import logging
 import pandas as pd
 import time
-import bs4
+from bs4 import BeautifulSoup
+import unicodedata
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -641,7 +642,7 @@ def nihms_signin(login, password):
     options.headless = True
 
     # Using Chrome to access web and switch to headless driver
-    driver = webdriver.Chrome(options=options)
+    driver = webdriver.Chrome(options = options)
 
     # Enter URL
     url = 'https://www.nihms.nih.gov/db/sub.cgi?login=myNCBI'
@@ -683,7 +684,7 @@ def pacm_login(login, password):
     # set chrome driver options to headless
     options = Options()
     options.headless = True
-    driver = webdriver.Chrome()
+    driver = webdriver.Chrome(options = options)
     driver.get('https://auth.nih.gov/CertAuthV2/forms/NIHPivOrFormLogin.aspx')
     driver.set_window_size(1440, 900)
     id_box = driver.find_element_by_id('USER').send_keys(login)
@@ -701,3 +702,69 @@ def pacm_login(login, password):
     login_button = driver.find_element_by_xpath('//*[@id="Image2"]').click()
     return driver
 
+
+def parse_pacm(driver, pacm_root, pmid, grant_list):
+    driver.get(pacm_root+pmid)
+    soup = BeautifulSoup(driver.page_source, 'lxml')
+
+    nihms_comm = '1'
+    nihms_id = ''
+    nihms_status = ''
+    journal_method = ''
+    files_deposited = ''
+    initial_approval = ''
+    tagging_complete = ''
+    final_approval = ''
+    initial_actor = ''
+    latest_actor = ''
+    
+    if re.search('An error has occurred.', soup.text) is not None:
+        nihms_status = 'error: pmid not found'
+        associated_grants = ''
+
+    else:
+        table = soup.find_all('table')[2].text
+        clean_table = unicodedata.normalize("NFKD", table)
+
+        if re.search('NIHMS ID: (.*?)\n', clean_table) is not None:
+            nihms_id = re.search('NIHMS ID: (.*?)\n', clean_table).group(1)
+
+        if re.search('Status: (.*?)\n', clean_table) is not None:
+            nihms_status = re.search('Status: (.*?)\n', clean_table).group(1)
+
+        if re.search('Method A journal: (.*?)\n', clean_table) is not None:
+            journal_method = re.search('Method A journal: (.*?)\n', clean_table).group(1).strip()
+
+        if re.search('Files deposited: (.*?)I', clean_table) is not None:
+            files_deposited = re.search('Files deposited: (.*?)I', clean_table).group(1)
+
+        if re.search('Initial approval: (.*?)T', clean_table) is not None:
+            initial_approval = re.search('Initial approval: (.*?)T', clean_table).group(1)
+
+        if re.search('Tagging complete: (.*?)F', clean_table) is not None:
+            tagging_complete = re.search('Tagging complete: (.*?)F', clean_table).group(1)
+
+        if re.search('Final approval: (.*?)\n', clean_table) is not None:
+            final_approval = re.search('Final approval: (.*?)\n', clean_table).group(1)
+
+        if re.search('Initial actor: (.*?)\n', clean_table) is not None:
+            initial_actor = re.search('Initial actor: (.*?)\n', clean_table).group(1)
+
+        if re.search('Latest: (.*?)\n', clean_table) is not None:
+            latest_actor = re.search('Latest: (.*?)\n', clean_table).group(1)
+
+        if re.search('Associated grants(.*?)Article source:', clean_table) is not None:
+            associated_grants = re.search('Associated grants(.*?)Article source:', clean_table).group(1)
+        else:
+            associated_grants = 'not parsed'
+
+        if initial_approval == '':
+            nihms_comm = '2'
+        elif final_approval == '':
+            nihms_comm = '3'
+        elif tagging_complete =='':
+            nihms_comm = '4'
+
+    row = [pmid, nihms_id, nihms_status, nihms_comm, journal_method, files_deposited, initial_approval, tagging_complete, final_approval, initial_actor, latest_actor, associated_grants]
+
+    return row
