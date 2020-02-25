@@ -734,18 +734,30 @@ def parse_pacm(driver, pacm_root, pmid, grant_list):
 
         if re.search('Method A journal: (.*?)\n', clean_table) is not None:
             journal_method = re.search('Method A journal: (.*?)\n', clean_table).group(1).strip()
+            if journal_method is 'Yes':
+                journal_method = '1'
+            elif journal_method is 'No':
+                journal_method = '0'
 
         if re.search('Files deposited: (.*?)I', clean_table) is not None:
             files_deposited = re.search('Files deposited: (.*?)I', clean_table).group(1)
+            if files_deposited is not '': 
+                files_deposited = datetime.datetime.strptime(files_deposited, "%m/%d/%y").strftime("%Y-%m-%d")
 
         if re.search('Initial approval: (.*?)T', clean_table) is not None:
             initial_approval = re.search('Initial approval: (.*?)T', clean_table).group(1)
+            if initial_approval is not '':
+                initial_approval = datetime.datetime.strptime(initial_approval, "%m/%d/%y").strftime("%Y-%m-%d")
 
         if re.search('Tagging complete: (.*?)F', clean_table) is not None:
             tagging_complete = re.search('Tagging complete: (.*?)F', clean_table).group(1)
+            if tagging_complete is not '':
+                tagging_complete = datetime.datetime.strptime(tagging_complete, "%m/%d/%y").strftime("%Y-%m-%d")
 
         if re.search('Final approval: (.*?)\n', clean_table) is not None:
             final_approval = re.search('Final approval: (.*?)\n', clean_table).group(1)
+            if final_approval is not '':
+                final_approval = datetime.datetime.strptime(final_approval, "%m/%d/%y").strftime("%Y-%m-%d")
 
         if re.search('Initial actor: (.*?)\n', clean_table) is not None:
             initial_actor = re.search('Initial actor: (.*?)\n', clean_table).group(1)

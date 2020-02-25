@@ -12,7 +12,7 @@ import pub_comp_lib
 
 # ## !!** For DEV
 from importlib import reload
-# importlib.reload(name_of_module)
+# reload(name_of_module)
 # ## !!** For DEV
 
 start = time.time()
