@@ -192,6 +192,7 @@ pub_comp = pub_comp.drop(['nihms_id_x', 'nihms_id_y'], axis=1)
 
 pub_comp.loc[pub_comp['pmc_id'].isnull() == False, 'nihms_comm'] = '5'
 pub_comp.loc[pub_comp['nihms_status'] == 'Excluded', 'nihms_comm'] = '6'
+pub_comp.loc[pub_comp['nihms_status'] == 'Excluded', 'author_excluded'] = '1'
 
 pub_comp.to_csv('batch_comprehensive_status.csv', index=False)
 

@@ -734,9 +734,9 @@ def parse_pacm(driver, pacm_root, pmid, grant_list):
 
         if re.search('Method A journal: (.*?)\n', clean_table) is not None:
             journal_method = re.search('Method A journal: (.*?)\n', clean_table).group(1).strip()
-            if journal_method is 'Yes':
+            if journal_method == 'Yes':
                 journal_method = '1'
-            elif journal_method is 'No':
+            elif re.search('No', journal_method):
                 journal_method = '0'
 
         if re.search('Files deposited: (.*?)I', clean_table) is not None:
@@ -770,12 +770,17 @@ def parse_pacm(driver, pacm_root, pmid, grant_list):
         else:
             pacm_grants = 'not parsed'
 
-        if tagging_complete =='':
-            nihms_comm = '4'
-        elif final_approval == '':
-            nihms_comm = '3'
+        if files_deposited == '':
+            nihms_comm = '1' 
         elif initial_approval == '':
             nihms_comm = '2'
+        elif final_approval == '':
+            nihms_comm = '3'
+        elif tagging_complete == '':
+            nihms_comm = '4'
+
+        if nihms_status == 'Compliant':
+            nihms_comm = '5'
 
     row = [pmid, nihms_id, nihms_status, nihms_comm, journal_method, files_deposited, initial_approval, tagging_complete, final_approval, initial_actor, latest_actor, pacm_grants]
 
