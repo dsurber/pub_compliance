@@ -763,38 +763,36 @@ def parse_pacm(driver, pacm_root, pmid, grant_list):
 
 
 def RC_update_status(pub_comp):
-    if files_deposited == '':
-        nihms_comm = '1' 
-    elif initial_approval == '':
-        nihms_comm = '2'
-    elif final_approval == '':
-        nihms_comm = '3'
-    elif tagging_complete == '':
-        nihms_comm = '4'
+    # Assign REDCap field values to nihms_comm based on date of completion for the nihms steps 
+    pub_comp.loc[pub_comp['tagging_complete'] == '', 'nihms_comm'] = '4'
+    pub_comp.loc[pub_comp['final_approval'] == '', 'nihms_comm'] = '3'
+    pub_comp.loc[pub_comp['initial_approval'] == '', 'nihms_comm'] = '2'
+    pub_comp.loc[pub_comp['files_deposited'] == '', 'nihms_comm'] = '1'
 
-    if nihms_status == 'Compliant':
-        nihms_comm = '5'
-
-    if journal_method == 'Yes':
-        journal_method = '1'
-    elif re.search('No', journal_method):
-        journal_method = '0'
-
-    if files_deposited is not '': 
-        files_deposited = datetime.datetime.strptime(files_deposited, "%m/%d/%y").strftime("%Y-%m-%d")
-
-    if initial_approval is not '':
-        initial_approval = datetime.datetime.strptime(initial_approval, "%m/%d/%y").strftime("%Y-%m-%d")
-
-    if final_approval is not '':
-        final_approval = datetime.datetime.strptime(final_approval, "%m/%d/%y").strftime("%Y-%m-%d")
-
-    if tagging_complete is not '':
-        tagging_complete = datetime.datetime.strptime(tagging_complete, "%m/%d/%y").strftime("%Y-%m-%d")
-
+    # Assign REDCap field values to nihms_comm, pmc_status, and author_excluded based on 
+    # 'Compliant' and 'Excluded' status per PACM scrape
     pub_comp.loc[pub_comp['pmc_id'].isnull() == False, 'nihms_comm'] = '5'
+    pub_comp.loc[pub_comp['nihms_status'] == 'Compliant', 'nihms_comm'] = '5'
+    pub_comp.loc[pub_comp['nihms_status'] == 'Compliant', 'pmc_status'] = '1'
     pub_comp.loc[pub_comp['nihms_status'] == 'Excluded', 'nihms_comm'] = '6'
     pub_comp.loc[pub_comp['nihms_status'] == 'Excluded', 'author_excluded'] = '1'
 
-    return pub_comp
+    # Assign REDCap field values to journal_method based on Method A documentation in PACM
+    pub_comp['journal_method'] = pub_comp['journal_method'].fillna('')
+    pub_comp.journal_method = pub_comp.journal_method.apply(lambda x: '0' if 'No' in x else x)
+    pub_comp.journal_method = pub_comp.journal_method.apply(lambda x: '1' if 'Yes' in x else x)
+
+    # Update nihms completion dates to importabl REDCap format (YYYY-MM-DD)
+    pub_comp['files_deposited'] = pub_comp['files_deposited'].fillna('')
+    pub_comp.files_deposited = pub_comp.files_deposited.apply(lambda x: x if x in '' else datetime.datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
+
+    pub_comp['initial_approval'] = pub_comp['initial_approval'].fillna('')
+    pub_comp.initial_approval = pub_comp.initial_approval.apply(lambda x: x if x in '' else datetime.datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
     
+    pub_comp['final_approval'] = pub_comp['final_approval'].fillna('')
+    pub_comp.final_approval = pub_comp.final_approval.apply(lambda x: x if x in '' else datetime.datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
+
+    pub_comp['tagging_complete'] = pub_comp['tagging_complete'].fillna('')
+    pub_comp.tagging_complete = pub_comp.tagging_complete.apply(lambda x: x if x in '' else datetime.datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
+
+    return pub_comp
