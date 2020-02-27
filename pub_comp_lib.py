@@ -776,6 +776,7 @@ def RC_update_status(pub_comp):
     pub_comp.loc[pub_comp['nihms_status'] == 'Compliant', 'pmc_status'] = '1'
     pub_comp.loc[pub_comp['nihms_status'] == 'Excluded', 'nihms_comm'] = '6'
     pub_comp.loc[pub_comp['nihms_status'] == 'Excluded', 'author_excluded'] = '1'
+    pub_comp.loc[pub_comp['nihms_status'] == 'Excluded', 'pmc_status'] = '5'
 
     # Assign REDCap field values to journal_method based on Method A documentation in PACM
     pub_comp['journal_method'] = pub_comp['journal_method'].fillna('')
