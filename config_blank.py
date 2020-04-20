@@ -32,3 +32,8 @@ era_login = ''
 
 # eRA Commons Password
 era_pass = ''
+
+# REDCap report numbers for MyNCBI importable medline files
+ul1 = ''
+kl2 = ''
+tl1 = ''
