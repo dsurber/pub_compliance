@@ -18,8 +18,8 @@ from importlib import reload
 start = time.time()
 
 logging.basicConfig(
-    filename="test.log", 
-    level=logging.DEBUG, 
+    filename="test.log",
+    level=logging.DEBUG,
     format="%(asctime)s:%(levelname)s:%(message)s"
     )
 
@@ -164,18 +164,18 @@ pacm_root = 'https://www.ncbi.nlm.nih.gov/pmc/utils/pacm/l/'
 if config.pacm == 'y':
     driver = pub_comp_lib.pacm_login(config.era_login, config.era_pass)
     time.sleep(3)
-    
+
     # get list of publications with during current grant cycle with no pmcid to check on
     # nihms status
     pubs_frame['pub_date'] = pd.to_datetime(pubs_frame['pub_date'], format='%Y-%m-%d')
     #config.start = datetime.strptime(config.start, '%m/%d/%Y')
     check_status = pubs_frame.pmid[(pubs_frame.pub_date > config.start) & (pubs_frame.pmcid.isnull())]
-    
+
     pacm_rows = [pub_comp_lib.parse_pacm(driver, pacm_root, x, variations) for x in check_status]
-    pacm_frame = pd.DataFrame(pacm_rows, columns=['pmid', 'nihms_id', 'nihms_status', 
-                                                  'journal_method', 'files_deposited', 
-                                                  'initial_approval', 'tagging_complete', 
-                                                  'final_approval', 'initial_actor', 
+    pacm_frame = pd.DataFrame(pacm_rows, columns=['pmid', 'nihms_id', 'nihms_status',
+                                                  'journal_method', 'files_deposited',
+                                                  'initial_approval', 'tagging_complete',
+                                                  'final_approval', 'initial_actor',
                                                   'latest_actor', 'pacm_grants'])
     driver.quit()
 ###################### END PACM Section
