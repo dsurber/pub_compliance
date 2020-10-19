@@ -35,17 +35,17 @@ def clean(grant):
 # takes a grant number and creates 10 variations
 def variety(grant):
 	vari = []
-	
+
 	if len(grant) == 11:
-		# create sections of grant number for formatting		
+		# create sections of grant number for formatting
 		first = grant[:3]
 		mid = grant[3:5]
 		last = grant[5:]
-		
+
 		# prefix and suffix variations
 		prefixes = ['', '1', '5', '9']
 		suffixes = ['', '-01']
-		
+
 		# outer loop for suffix variations
 		for suffix in suffixes:
 			# 1LL######
@@ -64,6 +64,8 @@ def variety(grant):
 	else: vari.append(grant)
 
 	return vari
+
+
 def details(pub, variations):
     # remove all white space and \n to help regex function
     pub = ''.join(pub.split('\n'))
@@ -299,67 +301,33 @@ def summary(pmids, ncbi_key, grants):
 	return pubs_frame
 
 
-
-
-
-# clears text from a webpage element
+### clears text from a webpage element
 def clear_text(element):
     length = len(element.get_attribute('value'))
     element.send_keys(length * Keys.BACKSPACE)
 
 
-def login_my_ncbi(url, my_bib, login, password, delay):
-        # ## Open headless browser and log into MyNCBI
-    # options = Options()
-    # options.headless = True
+def ncbi_login(login, password):
+    # set chrome driver options to headless
+    options = Options()
+    options.headless = True
+    driver = webdriver.Chrome(options = options)
+    driver.set_window_size(1440, 900)
+    driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
+    driver.switch_to.frame(driver.find_element_by_id('loginframe'))
+    driver.find_element_by_id('nih').click()
+    time.sleep(5)
+    driver.find_element_by_id('USER').send_keys(login)
+    driver.find_element_by_id('PASSWORD').send_keys(password)
+    driver.find_element_by_xpath('//*[@id="CredSelectorNotice"]/div/button').click()
+    return driver
 
-    #driver = webdriver.Chrome(options=options)      # Access web with Chrome
-
-    driver = webdriver.Chrome()
-
-    driver.get(url)     # Open the website
-    driver.set_window_size(1440, 900)       # Increase the headless window
-
-    driver.switch_to.frame('loginframe')
-
-    id_box = driver.find_element_by_id('uname').send_keys(login)
-    pass_box = driver.find_element_by_name('upasswd').send_keys(password)
-
-    login_button = driver.find_element_by_name('signinBtn').click()
-    time.sleep(delay)
-
-    try:
-        driver.find_element_by_xpath('//*[@id="signin-form"]/div/fieldset/ul[1]/li').is_displayed() == True
-        print('Login Failed')
-        driver.quit()
-        return 'Fail'
-    except Exception as err:
-        print('Login Successful')
-    time.sleep(delay)
-
-    # put in a do while to make two attempts?
-    attempt = 0
-    while attempt <= 3:
-        try: 
-            driver.find_element_by_xpath('//*[@id="bibPortlet"]/div[1]/img').is_displayed()
-            time.sleep(delay)
-            attempt += 1
-            if attempt == 3:
-                print('My NCBI is having trouble loading the bibliography collections...')
-                driver.quit()
-                return 'Fail'
-        except Exception as err: 
-            # ## Navigate to My Bibliography collection
-            driver.get(my_bib)
-            time.sleep(delay)       # let page load
-            attempt = 4
-            return driver
 
 def open_my_bib(driver, url, my_bib, delay, long_delay, login, password):
     driver.get(my_bib)
     attempt = 0
     while attempt <= 3:
-        try: 
+        try:
             driver.find_element_by_xpath('//*[@id="503-content"]').is_displayed() == True
             time.sleep(long_delay)
             attempt += 1
@@ -372,21 +340,23 @@ def open_my_bib(driver, url, my_bib, delay, long_delay, login, password):
             return driver
 
 
-def clear_my_bib(driver, delay):
+def clear_my_bib(driver, delay, logger):
     try:
         select_all = driver.find_element_by_xpath('//*[@id="selectbar"]/div[1]/ul/li[1]/a')
         driver.execute_script("arguments[0].click();", select_all)
         delete_all = driver.find_element_by_id('delete-citations')
         driver.execute_script("arguments[0].click();", delete_all)
-        delete_alert_obj = driver.switch_to.alert
-        delete_alert_obj.accept()
         time.sleep(delay)
+        #switch to pup up and click 'okay'
+        driver.switch_to.alert.accept()
+        time.sleep(delay)
+        #click 'done' on new popup
         driver.find_element_by_xpath('//*[@id="deleteCitations"]/button').click()
     except Exception as err:
-        print('no citations to delete: ', str(err))
+        logger.warning('no citations to delete: %s' %err)
 
 
-def add_to_my_bib(driver, add_pubs, delay, long_delay):
+def add_to_my_bib(driver, add_pubs, delay, long_delay, logger):
     # ## Open the 'Add Citations' window
     attempt = 0
     while attempt <= 5:
@@ -395,10 +365,10 @@ def add_to_my_bib(driver, add_pubs, delay, long_delay):
             driver.execute_script("arguments[0].click();", add_citation)
             attempt = 6
         except Exception as err:
-            print('unable to add citations: ', str(err))
+            #print('unable to add citations: ', str(err))
             if attempt == 4:
                 time.sleep(long_delay*4)
-                print('I really tried to add citations...')
+                #print('I really tried to add citations...')
             else:
                 time.sleep(delay)
             attempt += 1
@@ -413,7 +383,7 @@ def add_to_my_bib(driver, add_pubs, delay, long_delay):
             time.sleep(delay)
         attempt += 1
 
-    search_field.send_keys(', '.join(add_pubs))     
+    search_field.send_keys(', '.join(add_pubs))
     driver.find_element_by_xpath('//*[@id="search-but"]').click()
     time.sleep(long_delay)
 
@@ -429,20 +399,26 @@ def add_to_my_bib(driver, add_pubs, delay, long_delay):
         if next_button == False:
             #time.sleep(long_delay)
             add_button = WebDriverWait(driver, long_delay).until(EC.presence_of_element_located((By.XPATH, '//*[@id="add"]')))
-            print('i am trying to click ADD')
+            #print('i am trying to click ADD')
             #add_button.submit()
             driver.find_element_by_xpath('//*[@id="add"]').click()
         else:
-            print('still trying to click NEXT')
+            #print('still trying to click NEXT')
             try:
                 driver.find_element_by_xpath('//*[@id="nextpage"]').click()
             except Exception as err:
                 print('Failed to click next for some reason: %s', str(err))
-            
+                logger.warning('Failed to click next for some reason: %s' %err)
+                next_button = False
+
             time.sleep(delay)
 
+    try:
+        driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
+    except Exception as err:
+        driver.find_element_by_xpath('/html/body/div[6]/div[1]/button/span[1]').click()
 
-def scrape_citations(cite, count, driver, delay, long_delay):
+def scrape_citations(cite, count, grants, driver, delay, long_delay, logger):
     pmid = re.search('pmid=\\"([0-9]*)\\"', str(cite)).group(1)
     stat = re.search('span class\\=\\"status\\">([\S\s]*)</span>', str(cite)).group(1)
     if str('Complete') in str(stat):
@@ -479,216 +455,140 @@ def scrape_citations(cite, count, driver, delay, long_delay):
             if award in grants:
                 pmc_tag.append(award)
         pmc_tag = ', '.join(pmc_tag)
+        time.sleep(delay)
         # closes the grant dialog box
-        driver.find_element_by_xpath('/html/body/div[3]/div[1]/button').click()
+        attempt = 0
+        while attempt < 4:
+            try:
+                driver.find_element_by_id('cancel-association').click()
+                attempt = 4
+            except Exception as err:
+                if attempt == 2:
+                    time.sleep(long_delay)
+                    attempt += 1
+                    print('Might have failed on -cancel association- button for pmid: ' + pmid)
+                else:
+                    time.sleep(delay)
+                    attempt += 1
+
     else:
         pmc_tag = ""
 
     # assemble the pmid, status, and pmc_tag values into rows of a table
     row = [pmid, status, pmc_tag, all_awards]
-    
+
     return row
 
 
-def get_nihms(pmids, login, password):
-    # set chrome driver options to headless
-    options = Options()
-    options.headless = True
+def scrape_nihms_status(driver, nihms, pmid, delay, long_delay):
+    # initialize lists for the nihms status and progress details
+    pmc = ''
+    reviewer = ''
+    files_uploaded = ''
+    initial_approval = ''
+    nihms_conversion = ''
+    final_approval = ''
+    pmcid_assigned = ''
 
-    # Using Chrome to access web and switch to headless driver
-    driver = webdriver.Chrome(options=options)
+    nihms_url = 'https://www.nihms.nih.gov/submission/' + nihms + '/'
+    driver.get(nihms_url)
+    time.sleep(delay)
+    soup = BeautifulSoup(driver.page_source, 'lxml')
+    script_info = soup.find_all('div', 'usa-grid')[2]
+    # check for a pmcid value and append, else append blank value
+    if re.search('PMCID:</dt>\n<dd>([0-9].*?)</dd', str(script_info)) is not None:
+        pmc = (re.search('PMCID:</dt>\n<dd>([0-9].*?)</dd', str(script_info)).group(1))
 
-    # Enter URL
-    url = 'https://www.nihms.nih.gov/db/sub.cgi?login=myNCBI'
+    # check for a reviewer and append, else append blank value
+    if re.search('Reviewer:</dt>\n<dd>([A-Za-z].*?)</dd', str(script_info)) is not None:
+        reviewer = re.search('Reviewer:</dt>\n<dd>([A-Za-z].*?)</dd', str(script_info)).group(1)
 
-    # Open the website
-    driver.get(url)
+    # package of dates for the progress stages
+    script_progress = soup.find_all('div', 'progress')[0]
+    all_status = re.findall('<span>\\((.*?)\\ .*?\\)</span>', str(script_progress))
+    if len(all_status) >= 5:
+        files_uploaded = all_status[0]
+        initial_approval = all_status[1]
+        nihms_conversion = all_status[2]
+        final_approval = all_status[3]
+        pmcid_assigned = all_status[4]
+    elif len(all_status) == 4:
+        files_uploaded = all_status[0]
+        initial_approval = all_status[1]
+        nihms_conversion = all_status[2]
+        final_approval = all_status[3]
+    elif len(all_status) == 3:
+        files_uploaded = all_status[0]
+        initial_approval = all_status[1]
+        nihms_conversion = all_status[2]
+    elif len(all_status) == 2:
+        files_uploaded = all_status[0]
+        initial_approval = all_status[1]
+    elif len(all_status) == 1:
+        files_uploaded = all_status[0]
 
-    # Increase the headless window so buttons are in window
-    driver.set_window_size(1440, 900)
+    row = [pmid, nihms, pmc, reviewer, files_uploaded, initial_approval, nihms_conversion, final_approval, pmcid_assigned]
 
-    # switch to frame
-    driver.switch_to.frame('loginframe')
-
-    # Find NCBI login button and click
-    ncbi_log = driver.find_element_by_id('show_ncbi_login')
-    ncbi_log.click()
-
-    # Find username box
-    id_box = driver.find_element_by_id('uname')
-
-    # Send id information
-    id_box.send_keys(login)
-
-    # Find password box
-    pass_box = driver.find_element_by_name('upasswd')
-
-    # Send password
-    pass_box.send_keys(password)
-
-    # Find login button
-    login_button = driver.find_element_by_name('signinBtn')
-    # Click login
-    login_button.click()
-
-    # Create two different delay lengths for letting the webpage catch up
-    delay = 5
-    long_delay = 25
-    
-    # Pause and let the NIHMS webpage load after logging in
-    time.sleep(long_delay)
-
-    # initialize lists for the nihms status details
-    pubs = []
-    pmc = []
-    nihms = []
-    nihms_status = []
-    reviewer = []
+    return row
 
 
+def get_nihms(pmids, login, password, delay, long_delay):
+    rows = []
+
+    # log into ncbi
+    driver = ncbi_login(login, password)
+
+    # navigate to nihms since already logged in to ncbi
+    driver.get('https://www.nihms.nih.gov/submission/')
+    driver.find_element_by_xpath('//*[@id="react-app"]/div/div/div[2]/div[3]/a').click()
+
+    # loop through pmids and get nihms status and progress details that are available
     for pmid in pmids:
-        # search_url = 'https://www.nihms.nih.gov/db/sub.cgi?'
-        search_url = 'https://www.nihms.nih.gov/db/sub.cgi?ms_search_query_type=pm&ms_search_query=' + pmid + '&page_b=&link_b=BtnSearchManuscript&choice_b=Search'
-        # WAIT? how fast is the page loading once the search button is
-        # clicked??
-        # time.sleep(2)
-        # Scenario 1, not present in NIHMS, how do we check for this and
-        # log it?
+        search_url = 'https://www.nihms.nih.gov/submission/search/?q=' + pmid
         driver.get(search_url)
-        alert_banner = driver.find_element_by_tag_name('html').get_attribute('innerHTML')
-        if re.search('Manuscript with PubMed ID', alert_banner) is not None:
-            nihms_status.append('Not submitted to NIHMS yet')
-            pubs.append(pmid)
-            pmc.append(None)
-            nihms.append(None)
-            reviewer.append(None)
-        elif re.search('cancel_submission', alert_banner) is not None:
-            nihms_status.append('Awaiting Submission')
-            pubs.append(pmid)
-            pmc.append(None)
-            nihms.append(None)
-            reviewer.append(None)
+
+        # scrape the search results and see if there's a nihmsid for the pmid
+        html = driver.find_element_by_class_name('usa-table-borderless').get_attribute('innerText')
+
+        # initialize lists for the nihms status and progress details
+        nihms = ''
+        pmc = ''
+        reviewer = ''
+        files_uploaded = ''
+        initial_approval = ''
+        nihms_conversion = ''
+        final_approval = ''
+        pmcid_assigned = ''
+
+        # get the nihmsid
+        if re.search('No manuscripts found', html) is not None:
+            row = [pmid, nihms, pmc, reviewer, files_uploaded, initial_approval, nihms_conversion, final_approval, pmcid_assigned]
+        elif re.search('([0-9].*?)\t', html) is None:
+            row = [pmid, 'error', pmc, reviewer, files_uploaded, initial_approval, nihms_conversion, final_approval, pmcid_assigned]
         else:
-            attempt = 0
-            while attempt <= 4:
-                try:
-                    html = driver.find_element_by_class_name('ms-attrs').get_attribute('innerText')
-                    pubs.append(pmid)
-                    if re.search('PMC', html) is not None:
-                        pmc.append(re.search('PMC.*?([0-9].*?) NIHMS', html).group(1))
-                    else:
-                        pmc.append(None)
-                    if re.search('NIHMSID', html) is not None:
-                        if re.search('NIHMSID.*?([0-9].*?) [A-Za-z].*$', html) is not None:
-                            nihms.append(re.search('NIHMSID.*?([0-9].*?) [A-Za-z].*$', html).group(1))
-                        else:
-                            nihms.append(re.search('NIHMSID.*?([0-9].*)$', html).group(1))
-                    else:
-                        nihms.append(None)
-                    details = driver.find_element_by_class_name('box').get_attribute('innerText')
-                    if re.search('Status', details) is not None:
-                        nihms_status.append(re.search('Status.*?\n(.*?)\n', details).group(1))
-                    else:
-                        nihms_status.append('Unknown')
-                    if re.search('Reviewer.*?\n', details) is not None:
-                        if re.search('Reviewer.*?\n(.*?)\n', details) is None:
-                            reviewer.append(re.search('Reviewer.*?\n(.*?)$', details).group(1))
-                        else:
-                            reviewer.append(re.search('Reviewer.*?\n(.*?)\n').group(1))
-                    attempt = 5
-                except Exception as err:
-                    print('NIHMS Search Error: ', str(pmid))
-                    if attempt == 4:
-                        time.sleep(long_delay)
-                        print('I tried: ', str(attempt))
-                        nihms_status.append('Status Update Failed')
-                        pubs.append(pmid)
-                        pmc.append(None)
-                        nihms.append(None)
-                        reviewer.append(None)
-                    else:
-                        time.sleep(delay)
-                    attempt += 1
-    driver.quit()
-    nihms_frame = pd.DataFrame(
-                                {'pmid': pubs, 'pmcid': pmc,
-                                'nihmsid': nihms, 'nihms_status': nihms_status,
-                                'reviewer': reviewer
-                                })
+            nihms = re.search('([0-9].*?)\t', html).group(1)
+            row = scrape_nihms_status(driver, nihms, pmid, delay, long_delay)
+
+        rows.append(row)
+
+    driver.close()
+
+    ## package the rows into a data frame
+    nihms_frame = pd.DataFrame(rows, columns= ['pmid', 'nihms_id', 'pmc_id', 'reviewer', 'files_uploaded', 'initial_approval', 'nihms_conversion', 'final_approval', 'pmcid_assigned'])
+
     return nihms_frame
-
-
-def era_signin(era_login, era_password):
-    # set chrome driver options to headless
-    options = Options()
-    #options.headless = True
-    
-    # Using Chrome to access web and switch to headless driver
-    driver = webdriver.Chrome(options=options)
-    
-    # navigate to eRA Commons and log in
-    era_url = 'https://commons.era.nih.gov/'
-    driver.get(era_url)
-    driver.set_window_size(1440, 900) 
-    id_box = driver.find_element_by_id('USER').send_keys(era_login)
-    pass_box = driver.find_element_by_id('PASSWORD').send_keys(era_password)
-    login_button = driver.find_element_by_name('submit').click()
-    return driver
-
-
-def nihms_signin(login, password):
-    # set chrome driver options to headless
-    options = Options()
-    options.headless = True
-
-    # Using Chrome to access web and switch to headless driver
-    driver = webdriver.Chrome(options = options)
-
-    # Enter URL
-    url = 'https://www.nihms.nih.gov/db/sub.cgi?login=myNCBI'
-
-    # Open the website
-    driver.get(url)
-
-    # Increase the headless window so buttons are in window
-    driver.set_window_size(1440, 900)
-
-    # switch to frame
-    driver.switch_to.frame('loginframe')
-
-    # Find NCBI login button and click
-    ncbi_log = driver.find_element_by_id('show_ncbi_login')
-    ncbi_log.click()
-
-    # Find username box
-    id_box = driver.find_element_by_id('uname')
-
-    # Send id information
-    id_box.send_keys(login)
-
-    # Find password box
-    pass_box = driver.find_element_by_name('upasswd')
-
-    # Send password
-    pass_box.send_keys(password)
-
-    # Find login button
-    login_button = driver.find_element_by_name('signinBtn')
-    # Click login
-    login_button.click()
-
-    return driver
 
 
 def pacm_login(login, password):
     # set chrome driver options to headless
     options = Options()
-    options.headless = True
+    #options.headless = True
     driver = webdriver.Chrome(options = options)
     driver.get('https://auth.nih.gov/CertAuthV2/forms/NIHPivOrFormLogin.aspx')
     driver.set_window_size(1440, 900)
     id_box = driver.find_element_by_id('USER').send_keys(login)
     pass_box = driver.find_element_by_id('PASSWORD').send_keys(password)
+    time.sleep(2)
     login_button = driver.find_element_by_id('Image2').click()
 
     driver.get('https://www.ncbi.nlm.nih.gov/pmc/utils/pacm/')
@@ -716,7 +616,7 @@ def parse_pacm(driver, pacm_root, pmid, grant_list):
     final_approval = ''
     initial_actor = ''
     latest_actor = ''
-    
+
     if re.search('An error has occurred.', soup.text) is not None:
         nihms_status = 'error: pmid not found'
         pacm_grants = ''
@@ -736,16 +636,16 @@ def parse_pacm(driver, pacm_root, pmid, grant_list):
 
         if re.search('Files deposited: (.*?)I', clean_table) is not None:
             files_deposited = re.search('Files deposited: (.*?)I', clean_table).group(1)
-            
+
         if re.search('Initial approval: (.*?)T', clean_table) is not None:
             initial_approval = re.search('Initial approval: (.*?)T', clean_table).group(1)
-            
+
         if re.search('Tagging complete: (.*?)F', clean_table) is not None:
             tagging_complete = re.search('Tagging complete: (.*?)F', clean_table).group(1)
-            
+
         if re.search('Final approval: (.*?)\n', clean_table) is not None:
             final_approval = re.search('Final approval: (.*?)\n', clean_table).group(1)
-            
+
         if re.search('Initial actor: (.*?)\n', clean_table) is not None:
             initial_actor = re.search('Initial actor: (.*?)\n', clean_table).group(1)
 
@@ -763,13 +663,13 @@ def parse_pacm(driver, pacm_root, pmid, grant_list):
 
 
 def RC_update_status(pub_comp):
-    # Assign REDCap field values to nihms_comm based on date of completion for the nihms steps 
-    pub_comp.loc[pub_comp['tagging_complete'] == '', 'nihms_comm'] = '4'
+    # Assign REDCap field values to nihms_comm based on date of completion for the nihms steps
+    pub_comp.loc[pub_comp['pmcid_assigned'] == '', 'nihms_comm'] = '5'
     pub_comp.loc[pub_comp['final_approval'] == '', 'nihms_comm'] = '3'
     pub_comp.loc[pub_comp['initial_approval'] == '', 'nihms_comm'] = '2'
-    pub_comp.loc[pub_comp['files_deposited'] == '', 'nihms_comm'] = '1'
+    pub_comp.loc[pub_comp['files_uploaded'] == '', 'nihms_comm'] = '1'
 
-    # Assign REDCap field values to nihms_comm, pmc_status, and author_excluded based on 
+    # Assign REDCap field values to nihms_comm, pmc_status, and author_excluded based on
     # 'Compliant' and 'Excluded' status per PACM scrape
     pub_comp.loc[pub_comp['pmc_id'].isnull() == False, 'nihms_comm'] = '5'
     pub_comp.loc[pub_comp['nihms_status'] == 'Compliant', 'nihms_comm'] = '5'
@@ -784,16 +684,16 @@ def RC_update_status(pub_comp):
     pub_comp.journal_method = pub_comp.journal_method.apply(lambda x: '1' if 'Yes' in x else x)
 
     # Update nihms completion dates to importabl REDCap format (YYYY-MM-DD)
-    pub_comp['files_deposited'] = pub_comp['files_deposited'].fillna('')
-    pub_comp.files_deposited = pub_comp.files_deposited.apply(lambda x: x if x in '' else datetime.datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
+#    pub_comp['files_deposited'] = pub_comp['files_deposited'].fillna('')
+#    pub_comp.files_deposited = pub_comp.files_deposited.apply(lambda x: x if x in '' else datetime.datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
 
-    pub_comp['initial_approval'] = pub_comp['initial_approval'].fillna('')
-    pub_comp.initial_approval = pub_comp.initial_approval.apply(lambda x: x if x in '' else datetime.datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
-    
-    pub_comp['final_approval'] = pub_comp['final_approval'].fillna('')
-    pub_comp.final_approval = pub_comp.final_approval.apply(lambda x: x if x in '' else datetime.datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
+#    pub_comp['initial_approval'] = pub_comp['initial_approval'].fillna('')
+#    pub_comp.initial_approval = pub_comp.initial_approval.apply(lambda x: x if x in '' else datetime.datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
 
-    pub_comp['tagging_complete'] = pub_comp['tagging_complete'].fillna('')
-    pub_comp.tagging_complete = pub_comp.tagging_complete.apply(lambda x: x if x in '' else datetime.datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
+#    pub_comp['final_approval'] = pub_comp['final_approval'].fillna('')
+#    pub_comp.final_approval = pub_comp.final_approval.apply(lambda x: x if x in '' else datetime.datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
+
+#    pub_comp['tagging_complete'] = pub_comp['tagging_complete'].fillna('')
+#    pub_comp.tagging_complete = pub_comp.tagging_complete.apply(lambda x: x if x in '' else datetime.datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
 
     return pub_comp

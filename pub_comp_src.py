@@ -6,6 +6,14 @@ import pandas as pd
 from redcap import Project
 from datetime import datetime
 
+from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+
 ### Get access keys from the setup file - config.py
 import config
 import pub_comp_lib
@@ -15,7 +23,7 @@ from importlib import reload
 # reload(name_of_module)
 # ## !!** For DEV
 
-start = time.time()
+start_time = time.time()
 
 logging.basicConfig(
     filename="test.log",
@@ -73,6 +81,12 @@ for grant in variations:
 
 logger.info('All grant queries complete.')
 
+##### To test for PubMed downtime or blocked access...
+#handle = Entrez.esearch(db='pubmed', term=grant[0], field='grant')
+#record = Entrez.read(handle)
+#handle.close()
+#print(record)
+
 ### Update pmid set if a REDCap project is being used to track publications
 if config.rc_token is not None and config.rc_uri is not None:
     old_pmids = []
@@ -93,6 +107,7 @@ if config.rc_token is not None and config.rc_uri is not None:
                             columns=['pmid', 'first_discovered'])
         response = project.import_records(first_discovered_frame)
 
+###################### PubMed Summary Section
 ### Get table of publication details from pubmed for pmids
 # make dataframe of publications
 pubs_frame = pub_comp_lib.summary(pmids, config.ncbi_api, variations)
@@ -104,96 +119,147 @@ pubs_frame.to_csv('batch_pubmed_frame.csv', index=False)
 # change blank values to nan- makes column merging easier
 pubs_frame[pubs_frame == ''] = np.nan
 
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+pubs_frame = pubs_frame.rename(columns={'pmcid':'pmc_id', 'nihmsid': 'nihms_id'})
+###################### END PubMed Summary Section
+
 
 ###################### PMC Section
 
-# loop batches of ~50 pmids for pmc status and tags check
-#pmc_rows = pmc_status.pmc_scrape(pubs_frame.pmid[0:50], variations, config.ncbi_login, config.ncbi_pass)
-#pmc_rows = []
-#batch = 50
-#for x in range(0, len(pubs_frame.pmid[0:101]), batch):
-#    pmc_rows.extend(pmc_status.pmc_scrape(pubs_frame.pmid[x:x+batch], variations, config.ncbi_login, config.ncbi_pass))
+#####  For updated PMC interface
+# log into era commons
+attempt = 1
+while attempt <= 3:
+    try:
+        driver = pub_comp_lib.ncbi_login(config.ncbi_login, config.ncbi_pass)
+        attempt = 4
+    except Exception as err:
+        logger.warning('Unable to log into ERA Commons, attempt %i; error: %s' % (attempt, str(err)))
+        attempt += 1
+        time.sleep(2)
 
-#pmc_frame = pd.DataFrame(pmc_rows, columns=['pmid', 'pmc_status', 'pmc_tags', 'all_awards'])
-#pmc_frame.to_csv('DEV_batch_pmc_status.csv', index=False)
-# change blank values to nan- makes column merging easier
-#pmc_frame[pmc_frame == ''] = np.nan
-
-# get list of publications with red/grey/yellow pmc status to check on
-# nihms status
-#check_status = pmc_frame.pmid[pmc_frame['pmc_status'].isin(['2', '3', '4'])]
-
-###################### END PMC Section
-
-###################### Start NIHMS Section
 # get list of publications with during current grant cycle with no pmcid to check on
 # nihms status
-#pubs_frame['pub_date'] = pd.to_datetime(pubs_frame['pub_date'], format='%Y-%m-%d')
+pubs_frame['pub_date'] = pd.to_datetime(pubs_frame['pub_date'], format='%Y-%m-%d')
 #config.start = datetime.strptime(config.start, '%m/%d/%Y')
-#check_status = pubs_frame.pmid[(pubs_frame.pub_date > config.start) & (pubs_frame.pmcid.isnull())]
 
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+status_pmc = pubs_frame.pmid[(pubs_frame.pub_date > config.start) & (pubs_frame.pmc_id.isnull())]
+#status_pmc = pubs_frame.pmid[pubs_frame.pmc_id.isnull()]
+#status_pmc = pubs_frame.pmid
 
-### Check NIHMS status
-#nihms_frame = pub_comp_lib.get_nihms(check_status, config.ncbi_login, config.ncbi_pass)
-#nihms_frame.to_csv('batch_nihms_status.csv', index=False)
+####################### scrape pmc information in batches
+pmc_rows = []
+batch_size = 200
+count = len(status_pmc)
 
+for start in range(0, count, batch_size):
+    end = min(count, start+batch_size)
+
+    # reload my bib, clear all publications and load pmids in status_pmc
+    driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
+    pub_comp_lib.clear_my_bib(driver, 3, logger)
+    pub_comp_lib.add_to_my_bib(driver, status_pmc[start:end], 2, 7, logger)
+
+    # reload my bib and begin scraping each page of citations
+    time.sleep(2)
+    driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
+    time.sleep(2)
+    scrape_more = 1
+
+    #### loop for each 'next page' click
+    while scrape_more == 1:
+        soup = BeautifulSoup(driver.page_source, 'lxml')
+        cites = soup.find_all('div', 'citation-wrap')
+        for x in range(len(cites)):
+            pmc_rows.append(pub_comp_lib.scrape_citations(cites[x], x, variations, driver, 2, 7, logger))
+
+        ## check if there's another page of citations to scrape
+        time.sleep(2)
+
+        try:
+            next_button = driver.find_element_by_xpath('//*[@id="pager1"]/ul/li[4]/a').get_attribute('onclick')
+        except Exception as err:
+            next_button = 'return false;'
+
+        if  next_button == 'return false;' or driver.find_element_by_xpath('//*[@id="pager2"]/ul/li/span').get_attribute('innerText') == '1':
+            scrape_more = 0
+        else: driver.find_element_by_xpath('//*[@id="pager1"]/ul/li[4]/a').click()
+
+driver.close()
+
+## package the pmc_rows into a data frame
+pmc_frame = pd.DataFrame(pmc_rows, columns=['pmid', 'pmc_status', 'pmc_tags', 'all_awards'])
+pmc_frame.to_csv('DEV_batch_pmc_status.csv', index=False)
 # change blank values to nan- makes column merging easier
-#nihms_frame[nihms_frame == ''] = np.nan
+pmc_frame[pmc_frame == ''] = np.nan
 
-### Merge the dataframes for final report
-#pub_comp = pd.merge(pubs_frame, pmc_frame, on='pmid', how='outer').merge(nihms_frame, on='pmid', how='outer')
-#pub_comp = pd.merge(pubs_frame, nihms_frame, on='pmid', how='outer')
+# get list of publications with non-compliant pmc status to check on
+# nihms status
+status_nihms = pmc_frame.pmid[pmc_frame['pmc_status'].isin(['2', '3', '4'])]
+###################### END PMC Section
 
+############# NEW NIHMS Section
 
-# include nihms ids from all dataframes into a final column
-#pub_comp['nihms_id'] = pub_comp['nihmsid_x'].combine_first(pub_comp['nihmsid_y'])
-#pub_comp['nihms_id'] = pub_comp['nihmsid_y'].combine_first(pub_comp['nihms_id'])
+nihms_frame = pub_comp_lib.get_nihms(status_nihms, config.ncbi_login, config.ncbi_pass, 1, 5)
 
-# include pmc ids from all dataframes into a final column
-#pub_comp['pmc_id'] = pub_comp['pmcid_x'].combine_first(pub_comp['pmcid_y'])
-#pub_comp['pmc_id'] = pub_comp['pmcid_y'].combine_first(pub_comp['pmc_id'])
+nihms_frame.to_csv('DEV_batch_nihms_status.csv', index=False)
+# change blank values to nan- makes column merging easier
+nihms_frame[pmc_frame == ''] = np.nan
 
-# remove columns now that pmc and nihms ids have been merged
-#pub_comp = pub_comp.drop(['nihmsid_x', 'nihmsid_y','pmcid_x', 'pmcid_y'], axis=1)
-###################### END NIHMS Section
+################# END NEW NIHMS Section
 
 ###################### PACM Public Access Compliance Monitor for NIHMS status
 # establish the root of the pacm publication url
-pacm_root = 'https://www.ncbi.nlm.nih.gov/pmc/utils/pacm/l/'
-
-if config.pacm == 'y':
-    driver = pub_comp_lib.pacm_login(config.era_login, config.era_pass)
-    time.sleep(3)
+#pacm_root = 'https://www.ncbi.nlm.nih.gov/pmc/utils/pacm/l/'
+#
+#if config.pacm == 'y':
+#    driver = pub_comp_lib.pacm_login(config.era_login, config.era_pass)
+#    time.sleep(3)
 
     # get list of publications with during current grant cycle with no pmcid to check on
     # nihms status
-    pubs_frame['pub_date'] = pd.to_datetime(pubs_frame['pub_date'], format='%Y-%m-%d')
+#    pubs_frame['pub_date'] = pd.to_datetime(pubs_frame['pub_date'], format='%Y-%m-%d')
     #config.start = datetime.strptime(config.start, '%m/%d/%Y')
-    check_status = pubs_frame.pmid[(pubs_frame.pub_date > config.start) & (pubs_frame.pmcid.isnull())]
+#    check_status = pubs_frame.pmid[(pubs_frame.pub_date > config.start) & (pubs_frame.pmcid.isnull())]
 
-    pacm_rows = [pub_comp_lib.parse_pacm(driver, pacm_root, x, variations) for x in check_status]
-    pacm_frame = pd.DataFrame(pacm_rows, columns=['pmid', 'nihms_id', 'nihms_status',
-                                                  'journal_method', 'files_deposited',
-                                                  'initial_approval', 'tagging_complete',
-                                                  'final_approval', 'initial_actor',
-                                                  'latest_actor', 'pacm_grants'])
-    driver.quit()
+#    pacm_rows = [pub_comp_lib.parse_pacm(driver, pacm_root, x, variations) for x in check_status]
+#    pacm_frame = pd.DataFrame(pacm_rows, columns=['pmid', 'nihms_id', 'nihms_status',
+#                                                  'journal_method', 'files_deposited',
+#                                                  'initial_approval', 'tagging_complete',
+#                                                  'final_approval', 'initial_actor',
+#                                                  'latest_actor', 'pacm_grants'])
+#    driver.quit()
 ###################### END PACM Section
 
-pub_comp = pubs_frame.rename(columns={'pmcid':'pmc_id', 'nihmsid': 'nihms_id'})
+########## join pmids, pmc, and nihms tables and upload into REDCap
+pub_comp = pd.merge(pubs_frame, pmc_frame, on='pmid', how='outer')
+pub_comp = pd.merge(pub_comp, nihms_frame, on='pmid', how='outer')
 
-pub_comp = pd.merge(pub_comp, pacm_frame, on='pmid', how='outer')
+
 # include nihms ids from all dataframes into a final column
 pub_comp['nihms_id'] = pub_comp['nihms_id_x'].combine_first(pub_comp['nihms_id_y'])
 pub_comp['nihms_id'] = pub_comp['nihms_id_y'].combine_first(pub_comp['nihms_id'])
+
+# include pmc ids from all dataframes into a final column
+pub_comp['pmc_id'] = pub_comp['pmc_id_x'].combine_first(pub_comp['pmc_id_y'])
+pub_comp['pmc_id'] = pub_comp['pmc_id_y'].combine_first(pub_comp['pmc_id'])
+
+# include pmc status from all dataframes into a final column
+pub_comp['pmc_status'] = pub_comp['pmc_status_x'].combine_first(pub_comp['pmc_status_y'])
+pub_comp['pmc_status'] = pub_comp['pmc_status_y'].combine_first(pub_comp['pmc_status'])
+
 # remove columns now that pmc and nihms ids have been merged
 pub_comp = pub_comp.drop(['nihms_id_x', 'nihms_id_y'], axis=1)
+pub_comp = pub_comp.drop(['pmc_id_x', 'pmc_id_y'], axis=1)
+pub_comp = pub_comp.drop(['pmc_status_x', 'pmc_status_y'], axis=1)
 
+# write a copy to a .csv file
 pub_comp.to_csv('batch_comprehensive_status.csv', index=False)
 
 ### Update REDCap project if one is being used to track publications
 if config.rc_token is not None and config.rc_uri is not None and len(pmids) < 5000:
-    pub_comp = pub_comp_lib.RC_update_status(pub_comp)
+    #pub_comp = pub_comp_lib.RC_update_status(pub_comp)
     success = project.import_records(pub_comp)
 
-print('Publication compliance status update process complete in {0:0.1f} minutes' .format((time.time()-start)/60))
+print('Publication compliance status update process complete in {0:0.1f} minutes' .format((time.time()-start_time)/60))
