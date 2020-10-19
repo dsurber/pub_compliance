@@ -195,5 +195,13 @@ pub_comp.to_csv('batch_comprehensive_status.csv', index=False)
 if config.rc_token is not None and config.rc_uri is not None and len(pmids) < 5000:
     pub_comp = pub_comp_lib.RC_update_status(pub_comp)
     success = project.import_records(pub_comp)
+    if config.ul1 is not None:
+        rppr = 'UL1'
+        
+        print('UL1 MyNCBI importable report is '+write_myncbi(pmid_list, title_list, rppr))
+    else:
+        print('No UL1 report value. MedLine report not generated')
 
+        
 print('Publication compliance status update process complete in {0:0.1f} minutes' .format((time.time()-start)/60))
+

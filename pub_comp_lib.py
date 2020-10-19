@@ -797,3 +797,16 @@ def RC_update_status(pub_comp):
     pub_comp.tagging_complete = pub_comp.tagging_complete.apply(lambda x: x if x in '' else datetime.datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
 
     return pub_comp
+
+
+# create function to open a new file to write called MyNCBI-[rppr] then 
+# write pmids and titles in an amended medline file format
+def write_myncbi(pmid_list, title_list, rppr):
+    with open('MyNCBI-'+rppr+'.txt', 'w') as myncbi:
+        for x in range(len(pmid_list)):
+            myncbi.write('PMID '+pmid_list[x])
+            myncbi.write('\n')
+            myncbi.write('TI '+title_list[x])
+            myncbi.write('\n\n')
+        myncbi.close
+    return 'Complete'
