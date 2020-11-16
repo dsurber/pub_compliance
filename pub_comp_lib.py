@@ -731,7 +731,7 @@ def RC_update_status(pub_comp):
     # Assign REDCap field values to nihms_comm, pmc_status, and author_excluded based on
     # 'Compliant' and 'Excluded' status per PACM scrape
     #pub_comp.loc[pub_comp['pmc_id'].isnull() == False, 'nihms_comm'] = '5'
-    pub_comp.loc[pub_comp['pmc_id'].isin(['']) == False, 'nihms_comm'] = '5'
+#    pub_comp.loc[pub_comp['pmc_id'].isin(['']) == False, 'nihms_comm'] = '5'
 #    pub_comp.loc[pub_comp['nihms_status'] == 'Compliant', 'nihms_comm'] = '5'
 #    pub_comp.loc[pub_comp['nihms_status'] == 'Compliant', 'pmc_status'] = '1'
 #    pub_comp.loc[pub_comp['nihms_status'] == 'Excluded', 'nihms_comm'] = '6'
