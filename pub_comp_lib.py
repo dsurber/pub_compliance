@@ -316,7 +316,7 @@ def ncbi_login(login, password):
     driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
     driver.switch_to.frame(driver.find_element_by_id('loginframe'))
     driver.find_element_by_id('nih').click()
-    time.sleep(5)
+    time.sleep(10)
     driver.find_element_by_id('USER').send_keys(login)
     driver.find_element_by_id('PASSWORD').send_keys(password)
     driver.find_element_by_xpath('//*[@id="CredSelectorNotice"]/div/button').click()
@@ -378,14 +378,31 @@ def add_to_my_bib(driver, add_pubs, delay, long_delay, logger):
     while attempt <= 3:
         try:
             search_field = driver.find_element_by_xpath('//*[@id="term"]')
+            time.sleep(delay)
             attempt = 4
         except Exception as err:
             time.sleep(delay)
-        attempt += 1
+            attempt += 1
 
-    search_field.send_keys(', '.join(add_pubs))
-    driver.find_element_by_xpath('//*[@id="search-but"]').click()
-    time.sleep(long_delay)
+    attempt = 0
+    while attempt <= 3:
+        try:
+            search_field.send_keys(', '.join(add_pubs))
+            time.sleep(delay)
+            attempt = 4
+        except Exception as err:
+            time.sleep(delay)
+            attempt += 1
+
+    attempt = 0
+    while attempt <= 3:
+        try:
+            driver.find_element_by_xpath('//*[@id="search-but"]').click()
+            attempt = 4
+            time.sleep(delay)
+        except Exception as err:
+            time.sleep(delay)
+            attempt += 1
 
     next_button = True
     while next_button == True:
@@ -401,7 +418,16 @@ def add_to_my_bib(driver, add_pubs, delay, long_delay, logger):
             add_button = WebDriverWait(driver, long_delay).until(EC.presence_of_element_located((By.XPATH, '//*[@id="add"]')))
             #print('i am trying to click ADD')
             #add_button.submit()
-            driver.find_element_by_xpath('//*[@id="add"]').click()
+            attempt = 0
+            while attempt < 4:
+                try:
+                    driver.find_element_by_xpath('//*[@id="add"]').click()
+                    attempt = 4
+                except Exception as err:
+                    attempt += 1
+                    if attempt == 3:
+                        time.sleep(long_delay)
+                    else: time.sleep(delay)
         else:
             #print('still trying to click NEXT')
             try:
@@ -411,14 +437,15 @@ def add_to_my_bib(driver, add_pubs, delay, long_delay, logger):
                 logger.warning('Failed to click next for some reason: %s' %err)
                 next_button = False
 
-            time.sleep(delay)
+            time.sleep(long_delay)
 
     try:
         driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
     except Exception as err:
         driver.find_element_by_xpath('/html/body/div[6]/div[1]/button/span[1]').click()
 
-def scrape_citations(cite, count, grants, driver, delay, long_delay, logger):
+def scrape_citations(cite, count, grants, driver, delay, long_delay, logger, pub_start):
+    load_awards_delay = long_delay
     pmid = re.search('pmid=\\"([0-9]*)\\"', str(cite)).group(1)
     stat = re.search('span class\\=\\"status\\">([\S\s]*)</span>', str(cite)).group(1)
     if str('Complete') in str(stat):
@@ -442,13 +469,37 @@ def scrape_citations(cite, count, grants, driver, delay, long_delay, logger):
     if 'view8-awards open-award-dialog' in str(cite_award):
         place = count+1
         # update xpath for award list link
-        awards_list = str('//*[@id="main_content"]/section/div[7]/div['+str(place)+']/div[2]/div[2]/a')
-        # use updated xpath to open the awards dialog box
-        driver.find_element_by_xpath(awards_list).click()
-        time.sleep(delay)
+        if place == 1:
+            div_place = 'div'
+        else:
+            div_place = str('div['+str(place)+']')
+        awards_list = str('//*[@id="main_content"]/section/div[7]/'+div_place+'/div[2]/div[2]/a')
+        attempt = 0
+        while attempt < 4:
+            try:
+                # use updated xpath to open the awards dialog box
+                driver.find_element_by_xpath(awards_list).click()
+                attempt = 4
+            except Exception as err:
+                if attempt == 2:
+                    time.sleep(long_delay)
+                    attempt += 1
+                    print('Might have failed to open awards list for pmid: ' + pmid)
+                else:
+                    time.sleep(delay)
+                    attempt += 1
+        time.sleep(load_awards_delay)
         # extract the text of the award dialog box
         grant_dialog = driver.find_element_by_xpath('//*[@id="grant-dialog"]').get_attribute('outerHTML')
-        all_awards = re.findall('<div class="checked read-only">.*?<p>(.*?) -', grant_dialog)
+        all_awards = re.findall('<div class="checked read-only.*?<p>(.*?) -', grant_dialog)
+        # Development check for loading time of awards info!!!!!!!!!!!!
+        if len(all_awards) == 0:
+            print('--May need to wait longer for awards to load, got 0 for pmid: ' + pmid)
+            time.sleep(load_awards_delay)
+            grant_dialog = driver.find_element_by_xpath('//*[@id="grant-dialog"]').get_attribute('outerHTML')
+            all_awards = re.findall('<div class="checked read-only.*?<p>(.*?) -', grant_dialog)
+            if len(all_awards) == 0:
+                print('---Well maybe there are no awards for pmid: ' + pmid)
         # not sure about the 'in grants' portion below to only list pmc tagged
         # grants that are in the list provided by the user
         for award in all_awards:
@@ -457,6 +508,7 @@ def scrape_citations(cite, count, grants, driver, delay, long_delay, logger):
         pmc_tag = ', '.join(pmc_tag)
         time.sleep(delay)
         # closes the grant dialog box
+        last_try = 'no'
         attempt = 0
         while attempt < 4:
             try:
@@ -467,16 +519,22 @@ def scrape_citations(cite, count, grants, driver, delay, long_delay, logger):
                     time.sleep(long_delay)
                     attempt += 1
                     print('Might have failed on -cancel association- button for pmid: ' + pmid)
+                    last_try = 'yes'
                 else:
                     time.sleep(delay)
                     attempt += 1
-
+        if last_try == 'yes':
+            time.sleep(long_delay)
+            try:
+                driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
+            except Exception as err:
+                print('Also may have failed to hit the x for pmid: ' + pmid)
     else:
         pmc_tag = ""
 
     # assemble the pmid, status, and pmc_tag values into rows of a table
-    row = [pmid, status, pmc_tag, all_awards]
-
+    #row = [pmid, status, pmc_tag, all_awards, (int(count) + int(pub_start))]
+    row = [pmid, status, pmc_tag, all_awards, pub_start]
     return row
 
 
@@ -664,6 +722,7 @@ def parse_pacm(driver, pacm_root, pmid, grant_list):
 
 def RC_update_status(pub_comp):
     # Assign REDCap field values to nihms_comm based on date of completion for the nihms steps
+    pub_comp.loc[pub_comp['pmc_id'] == '', 'nihms_comm'] = '1'
     pub_comp.loc[pub_comp['pmcid_assigned'] == '', 'nihms_comm'] = '5'
     pub_comp.loc[pub_comp['final_approval'] == '', 'nihms_comm'] = '3'
     pub_comp.loc[pub_comp['initial_approval'] == '', 'nihms_comm'] = '2'
@@ -671,17 +730,18 @@ def RC_update_status(pub_comp):
 
     # Assign REDCap field values to nihms_comm, pmc_status, and author_excluded based on
     # 'Compliant' and 'Excluded' status per PACM scrape
-    pub_comp.loc[pub_comp['pmc_id'].isnull() == False, 'nihms_comm'] = '5'
-    pub_comp.loc[pub_comp['nihms_status'] == 'Compliant', 'nihms_comm'] = '5'
-    pub_comp.loc[pub_comp['nihms_status'] == 'Compliant', 'pmc_status'] = '1'
-    pub_comp.loc[pub_comp['nihms_status'] == 'Excluded', 'nihms_comm'] = '6'
-    pub_comp.loc[pub_comp['nihms_status'] == 'Excluded', 'author_excluded'] = '1'
-    pub_comp.loc[pub_comp['nihms_status'] == 'Excluded', 'pmc_status'] = '5'
+    #pub_comp.loc[pub_comp['pmc_id'].isnull() == False, 'nihms_comm'] = '5'
+    pub_comp.loc[pub_comp['pmc_id'].isin(['']) == False, 'nihms_comm'] = '5'
+#    pub_comp.loc[pub_comp['nihms_status'] == 'Compliant', 'nihms_comm'] = '5'
+#    pub_comp.loc[pub_comp['nihms_status'] == 'Compliant', 'pmc_status'] = '1'
+#    pub_comp.loc[pub_comp['nihms_status'] == 'Excluded', 'nihms_comm'] = '6'
+#    pub_comp.loc[pub_comp['nihms_status'] == 'Excluded', 'author_excluded'] = '1'
+#    pub_comp.loc[pub_comp['nihms_status'] == 'Excluded', 'pmc_status'] = '5'
 
     # Assign REDCap field values to journal_method based on Method A documentation in PACM
-    pub_comp['journal_method'] = pub_comp['journal_method'].fillna('')
-    pub_comp.journal_method = pub_comp.journal_method.apply(lambda x: '0' if 'No' in x else x)
-    pub_comp.journal_method = pub_comp.journal_method.apply(lambda x: '1' if 'Yes' in x else x)
+#    pub_comp['journal_method'] = pub_comp['journal_method'].fillna('')
+#    pub_comp.journal_method = pub_comp.journal_method.apply(lambda x: '0' if 'No' in x else x)
+#    pub_comp.journal_method = pub_comp.journal_method.apply(lambda x: '1' if 'Yes' in x else x)
 
     # Update nihms completion dates to importabl REDCap format (YYYY-MM-DD)
 #    pub_comp['files_deposited'] = pub_comp['files_deposited'].fillna('')

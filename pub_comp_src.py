@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from redcap import Project
 from datetime import datetime
+import csv
 
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -120,7 +121,7 @@ pubs_frame.to_csv('batch_pubmed_frame.csv', index=False)
 pubs_frame[pubs_frame == ''] = np.nan
 
 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-pubs_frame = pubs_frame.rename(columns={'pmcid':'pmc_id', 'nihmsid': 'nihms_id'})
+pubs_frame = pubs_frame.rename(columns={'pmcid':'pmc_id', 'nihmsid':'nihms_id'})
 ###################### END PubMed Summary Section
 
 
@@ -143,60 +144,88 @@ while attempt <= 3:
 pubs_frame['pub_date'] = pd.to_datetime(pubs_frame['pub_date'], format='%Y-%m-%d')
 #config.start = datetime.strptime(config.start, '%m/%d/%Y')
 
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-status_pmc = pubs_frame.pmid[(pubs_frame.pub_date > config.start) & (pubs_frame.pmc_id.isnull())]
+#!!!!!!! how much of the pubmed results are going to pmc to check for compliance
+#status_pmc = pubs_frame.pmid[(pubs_frame.pub_date > config.start) & (pubs_frame.pmc_id.isnull())]
+#status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > config.start) | (pubs_frame.pmc_id.isnull())])
 #status_pmc = pubs_frame.pmid[pubs_frame.pmc_id.isnull()]
-#status_pmc = pubs_frame.pmid
+#status_pmc = pubs_frame.pmid[(pubs_frame.pub_date > config.start)]
+status_pmc = list(pubs_frame.pmid)
+
+##!!!!!!!!! DEV ONLY csv file since I can't tell if all pmids are being sent to pmc
+#status_pmc.to_csv('pmids_to_check_in_pmc.csv', index=False)
+with open("pmids_to_check_in_pmc.csv", "w") as f:
+    writer = csv.writer(f)
+    writer.writerows(status_pmc)
+
+print("length of status_pmc: " + str(len(status_pmc)))
 
 ####################### scrape pmc information in batches
 pmc_rows = []
 batch_size = 200
 count = len(status_pmc)
+delay = 2
+long_delay = 7
 
 for start in range(0, count, batch_size):
     end = min(count, start+batch_size)
-
     # reload my bib, clear all publications and load pmids in status_pmc
+    print('Starting new batch: ' + str(start) + '-' + str(end) + ', Currently have gathered ' + str(len(pmc_rows)) +' rows.')
     driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
-    pub_comp_lib.clear_my_bib(driver, 3, logger)
-    pub_comp_lib.add_to_my_bib(driver, status_pmc[start:end], 2, 7, logger)
+    time.sleep(long_delay)
+    pub_comp_lib.clear_my_bib(driver, delay, logger)
+    print('*Cleared MyBib')
+    time.sleep(long_delay)
+    pub_comp_lib.add_to_my_bib(driver, status_pmc[start:end], delay, long_delay, logger)
+    print('**Added ' + str(end-start) + ' pubs to MyBib: ' + str(start) + '-' + str(end) + ' pmids ' + str(status_pmc[start]) + '-' + str(status_pmc[end-1]))
+    #print("Start: " + str(start))
+    #print("End: " + str(end))
+    #print("First PMID: " + status_pmc[0])
+    #print("Pubs_Frame PMID: " + pubs_frame.pmid[1])
 
     # reload my bib and begin scraping each page of citations
-    time.sleep(2)
+    time.sleep(long_delay)
     driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
-    time.sleep(2)
-    scrape_more = 1
+    time.sleep(long_delay)
 
+    scrape_more = True
     #### loop for each 'next page' click
-    while scrape_more == 1:
+    while scrape_more == True:
         soup = BeautifulSoup(driver.page_source, 'lxml')
         cites = soup.find_all('div', 'citation-wrap')
+        print('**!Gonna scrape ' + str(len(cites)) + ' citations now.')
         for x in range(len(cites)):
-            pmc_rows.append(pub_comp_lib.scrape_citations(cites[x], x, variations, driver, 2, 7, logger))
-
+            pmc_rows.append(pub_comp_lib.scrape_citations(cites[x], x, variations, driver, delay, long_delay, logger, start))
+        print('**!!Finished a page of scraping citations... got ' + str(len(pmc_rows)) + ' rows.')
         ## check if there's another page of citations to scrape
-        time.sleep(2)
-
+        time.sleep(delay)
         try:
             next_button = driver.find_element_by_xpath('//*[@id="pager1"]/ul/li[4]/a').get_attribute('onclick')
         except Exception as err:
             next_button = 'return false;'
-
-        if  next_button == 'return false;' or driver.find_element_by_xpath('//*[@id="pager2"]/ul/li/span').get_attribute('innerText') == '1':
-            scrape_more = 0
+        if next_button == 'return false;' or driver.find_element_by_xpath('//*[@id="pager2"]/ul/li/span').get_attribute('innerText') == '1':
+            scrape_more = False
+            print('**!!looks like no next button on publication number:' + str(end) + ' with ' + str(len(pmc_rows)) + ' rows and last pmid logged is ' + str(pmc_rows[-1:]))
         else: driver.find_element_by_xpath('//*[@id="pager1"]/ul/li[4]/a').click()
-
+    #if count > 1000:
+    time.sleep(90)
+    print('***Completed ' + str(start) + ' : ' + str(end) + '    minutes-{0:0.1f}' .format((time.time()-start_time)/60))
+    #time.sleep(delay)
 driver.close()
 
+print('All done with scraping.  Got ' + str(len(pmc_rows)) + ' rows and expected ' + str(len(status_pmc)) + ' rows.')
+
 ## package the pmc_rows into a data frame
-pmc_frame = pd.DataFrame(pmc_rows, columns=['pmid', 'pmc_status', 'pmc_tags', 'all_awards'])
+pmc_frame = pd.DataFrame(pmc_rows, columns=['pmid', 'pmc_status', 'pmc_tags', 'all_awards', 'pub_num'])
 pmc_frame.to_csv('DEV_batch_pmc_status.csv', index=False)
 # change blank values to nan- makes column merging easier
 pmc_frame[pmc_frame == ''] = np.nan
 
+# drop the pub_num column after the data frame has been written to csv file
+pmc_frame = pmc_frame.drop('pub_num', 1)
+
 # get list of publications with non-compliant pmc status to check on
 # nihms status
-status_nihms = pmc_frame.pmid[pmc_frame['pmc_status'].isin(['2', '3', '4'])]
+status_nihms = pmc_frame.pmid[pmc_frame['pmc_status'].isin(['2', '3', '4', ''])]
 ###################### END PMC Section
 
 ############# NEW NIHMS Section
@@ -254,12 +283,14 @@ pub_comp = pub_comp.drop(['nihms_id_x', 'nihms_id_y'], axis=1)
 pub_comp = pub_comp.drop(['pmc_id_x', 'pmc_id_y'], axis=1)
 pub_comp = pub_comp.drop(['pmc_status_x', 'pmc_status_y'], axis=1)
 
-# write a copy to a .csv file
-pub_comp.to_csv('batch_comprehensive_status.csv', index=False)
+pub_comp['nihms_comm'] = ''
 
 ### Update REDCap project if one is being used to track publications
 if config.rc_token is not None and config.rc_uri is not None and len(pmids) < 5000:
-    #pub_comp = pub_comp_lib.RC_update_status(pub_comp)
+    pub_comp = pub_comp_lib.RC_update_status(pub_comp)
     success = project.import_records(pub_comp)
+
+# write a copy to a .csv file
+pub_comp.to_csv('batch_comprehensive_status.csv', index=False)
 
 print('Publication compliance status update process complete in {0:0.1f} minutes' .format((time.time()-start_time)/60))
