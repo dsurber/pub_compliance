@@ -215,9 +215,20 @@ def details(pub, variations):
 
     pubmed_tags = ', '.join(pubmed_tags)
 
+    ## get publication types to exclude some pubs from NIH PA Policy
+    exclude = ''
+    pub_types = []
+    type_list = re.split('<PublicationType UI', pub)
+    for x in range(1, len(type_list)):
+        if re.search('\\">(.*?)</PublicationType>', type_list[x]) is not None:
+            pub_types.append(re.search('\\">(.*?)</PublicationType>', type_list[x]).group(1))
+            if re.search('\\">(.*?)</PublicationType>', type_list[x]).group(1).lower() in ['letter', 'comment']:
+                exclude = '1'
+    pub_type_list = ', '.join(pub_types)
+
     row = [pmid, pmcid, nihmsid,  nctid, pub_title, authors,
             authors_lnames, authors_initials, authors_orcid, authors_affil,
-            pub_date, journal_short, journal_full, pubmed_tags]
+            pub_date, journal_short, journal_full, pubmed_tags, pub_type_list, exclude]
 
     return row
 
@@ -296,7 +307,7 @@ def summary(pmids, ncbi_key, grants):
 	                          'pmid', 'pmcid', 'nihmsid',  'nctid', 'pub_title',
 	                          'authors', 'authors_lnames', 'authors_initials',
 	                          'orcid', 'authors_affil', 'pub_date', 'journal_short',
-	                          'journal_full', 'pubmed_tags'])
+	                          'journal_full', 'pubmed_tags', 'pub_type_list', 'exclude'])
 
 	return pubs_frame
 
@@ -407,7 +418,16 @@ def add_to_my_bib(driver, add_pubs, delay, long_delay, logger):
     next_button = True
     while next_button == True:
         time.sleep(delay)
-        next_button = driver.find_element_by_xpath('//*[@id="nextpage"]').is_displayed()
+
+        attempt = 0
+        while attempt <= 3:
+            try:
+                next_button = driver.find_element_by_xpath('//*[@id="nextpage"]').is_displayed()
+                attempt = 4
+            except Exception as err:
+                time.sleep(long_delay)
+                attempt += 1
+
         # ## Select all publications, add, close 'Add Citations' window
         checkboxes = driver.find_elements_by_css_selector("#search-results input[type='checkbox']")
         for checkbox in checkboxes:
@@ -415,7 +435,7 @@ def add_to_my_bib(driver, add_pubs, delay, long_delay, logger):
         time.sleep(delay)
         if next_button == False:
             #time.sleep(long_delay)
-            add_button = WebDriverWait(driver, long_delay).until(EC.presence_of_element_located((By.XPATH, '//*[@id="add"]')))
+            #add_button = WebDriverWait(driver, long_delay).until(EC.presence_of_element_located((By.XPATH, '//*[@id="add"]')))
             #print('i am trying to click ADD')
             #add_button.submit()
             attempt = 0
@@ -500,6 +520,8 @@ def scrape_citations(cite, count, grants, driver, delay, long_delay, logger, pub
             all_awards = re.findall('<div class="checked read-only.*?<p>(.*?) -', grant_dialog)
             if len(all_awards) == 0:
                 print('---Well maybe there are no awards for pmid: ' + pmid)
+            else:
+                print('---I waited longer and got them when I tried again.')
         # not sure about the 'in grants' portion below to only list pmc tagged
         # grants that are in the list provided by the user
         for award in all_awards:
@@ -598,7 +620,8 @@ def get_nihms(pmids, login, password, delay, long_delay):
 
     # navigate to nihms since already logged in to ncbi
     driver.get('https://www.nihms.nih.gov/submission/')
-    driver.find_element_by_xpath('//*[@id="react-app"]/div/div/div[2]/div[3]/a').click()
+    # click xpath for the NCBI access button - in case of errors, verify this xpath
+    driver.find_element_by_xpath('//*[@id="react-app"]/div/div/div[3]/div[3]/a').click()
 
     # loop through pmids and get nihms status and progress details that are available
     for pmid in pmids:

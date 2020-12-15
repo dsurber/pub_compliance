@@ -148,8 +148,8 @@ pubs_frame['pub_date'] = pd.to_datetime(pubs_frame['pub_date'], format='%Y-%m-%d
 #status_pmc = pubs_frame.pmid[(pubs_frame.pub_date > config.start) & (pubs_frame.pmc_id.isnull())]
 #status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > config.start) | (pubs_frame.pmc_id.isnull())])
 #status_pmc = pubs_frame.pmid[pubs_frame.pmc_id.isnull()]
-#status_pmc = pubs_frame.pmid[(pubs_frame.pub_date > config.start)]
-status_pmc = list(pubs_frame.pmid)
+status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > config.start)])
+#status_pmc = list(pubs_frame.pmid)
 
 ##!!!!!!!!! DEV ONLY csv file since I can't tell if all pmids are being sent to pmc
 #status_pmc.to_csv('pmids_to_check_in_pmc.csv', index=False)
@@ -161,10 +161,10 @@ print("length of status_pmc: " + str(len(status_pmc)))
 
 ####################### scrape pmc information in batches
 pmc_rows = []
-batch_size = 200
+batch_size = 250
 count = len(status_pmc)
 delay = 2
-long_delay = 7
+long_delay = 5
 
 for start in range(0, count, batch_size):
     end = min(count, start+batch_size)
@@ -207,7 +207,7 @@ for start in range(0, count, batch_size):
             print('**!!looks like no next button on publication number:' + str(end) + ' with ' + str(len(pmc_rows)) + ' rows and last pmid logged is ' + str(pmc_rows[-1:]))
         else: driver.find_element_by_xpath('//*[@id="pager1"]/ul/li[4]/a').click()
     #if count > 1000:
-    time.sleep(90)
+    time.sleep(15)
     print('***Completed ' + str(start) + ' : ' + str(end) + '    minutes-{0:0.1f}' .format((time.time()-start_time)/60))
     #time.sleep(delay)
 driver.close()
