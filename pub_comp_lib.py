@@ -222,7 +222,7 @@ def details(pub, variations):
     for x in range(1, len(type_list)):
         if re.search('\\">(.*?)</PublicationType>', type_list[x]) is not None:
             pub_types.append(re.search('\\">(.*?)</PublicationType>', type_list[x]).group(1))
-            if re.search('\\">(.*?)</PublicationType>', type_list[x]).group(1).lower() in ['letter', 'comment']:
+            if re.search('\\">(.*?)</PublicationType>', type_list[x]).group(1).lower() in ['letter', 'comment', 'editorial']:
                 exclude = '1'
     pub_type_list = ', '.join(pub_types)
 
@@ -782,7 +782,7 @@ def RC_update_status(pub_comp):
     return pub_comp
 
 
-# create function to open a new file to write called MyNCBI-[rppr] then 
+# create function to open a new file to write called MyNCBI-[rppr] then
 # write pmids and titles in an amended medline file format
 def write_myncbi(pmid_list, title_list, rppr):
     with open('MyNCBI-'+rppr+'.txt', 'w') as myncbi:
