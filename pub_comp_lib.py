@@ -226,9 +226,43 @@ def details(pub, variations):
                 exclude = '1'
     pub_type_list = ', '.join(pub_types)
 
+    ## get mesh heading major and minor topics with qualifiers
+    minor_topics = []
+    major_topics = []
+    key_topics = []
+
+    mesh_list = re.split('<MeshHeading>', pub)
+    for x in range(1, len(mesh_list)):
+        major = ''
+        minor = ''
+        # decide if the descriptor is major or minor and extract descriptor text
+        if re.search('="N".*?>(.*?)</D', mesh_list[x]) is not None:
+            minor = re.search('>(.*?)</D', mesh_list[x]).group(1)
+        elif re.search('="Y".*?>(.*?)</D', mesh_list[x]) is not None:
+            major = re.search('>(.*?)</D', mesh_list[x]).group(1)
+        # check if major or minor descriptor is one of the key topics, if so, append to key list
+        if re.search('">(.*?)</D', mesh_list[x]).group(1).lower() in ['pediatrics', 'translational medical research']:
+            key_topics.append(re.search('">(.*?)</D', mesh_list[x]).group(1))
+        # create list of qualifiers and assemble extracted qualifier text into a list
+        qual_list = re.split('<QualifierName', mesh_list[x])
+        qualifier = []
+        for y in range(1, len(qual_list)):
+            if re.search('">(.*?)</Q', qual_list[y]) is not None:
+                qualifier.append(re.search('">(.*?)</Q', qual_list[y]).group(1))
+        # add qualifiers to the major or minor descriptor and append to the list
+        if len(major) > 0:
+            major_topics.append(major + ' (' + '; '.join(qualifier) + ')')
+        else: minor_topics.append(minor + ' (' + '; '.join(qualifier) + ')')
+
+    mesh_minor = '; '.join(minor_topics)
+    mesh_major = '; '.join(major_topics)
+    mesh_key = '; '.join(key_topics)
+
+    ## assemble all values for the row of the dataframe to be returned
     row = [pmid, pmcid, nihmsid,  nctid, pub_title, authors,
             authors_lnames, authors_initials, authors_orcid, authors_affil,
-            pub_date, journal_short, journal_full, pubmed_tags, pub_type_list, exclude]
+            pub_date, journal_short, journal_full, pubmed_tags, pub_type_list,
+            exclude, mesh_major, mesh_minor, mesh_key]
 
     return row
 
@@ -307,7 +341,8 @@ def summary(pmids, ncbi_key, grants):
 	                          'pmid', 'pmcid', 'nihmsid',  'nctid', 'pub_title',
 	                          'authors', 'authors_lnames', 'authors_initials',
 	                          'orcid', 'authors_affil', 'pub_date', 'journal_short',
-	                          'journal_full', 'pubmed_tags', 'pub_type_list', 'exclude'])
+	                          'journal_full', 'pubmed_tags', 'pub_type_list', 'exclude',
+                              'mesh_major', 'mesh_minor', 'mesh_key'])
 
 	return pubs_frame
 
