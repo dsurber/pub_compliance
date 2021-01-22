@@ -145,8 +145,8 @@ pubs_frame['pub_date'] = pd.to_datetime(pubs_frame['pub_date'], format='%Y-%m-%d
 #config.start = datetime.strptime(config.start, '%m/%d/%Y')
 
 #!!!!!!! how much of the pubmed results are going to pmc to check for compliance
-status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > config.start) & (pubs_frame.pmc_id.isnull())])
-#status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > config.start) | (pubs_frame.pmc_id.isnull())])
+#status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > config.start) & (pubs_frame.pmc_id.isnull())])
+status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > config.start) | (pubs_frame.pmc_id.isnull())])
 #status_pmc = pubs_frame.pmid[pubs_frame.pmc_id.isnull()]
 #status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > config.start)])
 #status_pmc = list(pubs_frame.pmid)

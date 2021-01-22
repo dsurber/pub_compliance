@@ -319,7 +319,7 @@ def summary(pmids, ncbi_key, grants):
 				                             retstart=start, retmax=batch_size,
 				                             webenv=webenv, query_key=query_key,
 				                             retmode='xml')
-				records.extend(fetch_handle.read())
+				records.extend(str(fetch_handle.read()))
 				fetch_handle.close
 				attempt = 4
 			except HTTPError as err:
@@ -362,7 +362,7 @@ def ncbi_login(login, password):
     driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
     driver.switch_to.frame(driver.find_element_by_id('loginframe'))
     driver.find_element_by_id('nih').click()
-    time.sleep(10)
+    time.sleep(3)
     driver.find_element_by_id('USER').send_keys(login)
     driver.find_element_by_id('PASSWORD').send_keys(password)
     driver.find_element_by_xpath('//*[@id="CredSelectorNotice"]/div/button').click()
@@ -497,6 +497,7 @@ def add_to_my_bib(driver, add_pubs, delay, long_delay, logger):
     try:
         driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
     except Exception as err:
+        time.sleep(long_delay)
         driver.find_element_by_xpath('/html/body/div[6]/div[1]/button/span[1]').click()
 
 def scrape_citations(cite, count, grants, driver, delay, long_delay, logger, pub_start):
