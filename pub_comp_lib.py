@@ -9,6 +9,9 @@ import pandas as pd
 import time
 from bs4 import BeautifulSoup
 import unicodedata
+from redcap import Project
+import requests
+from pyaltmetric import Altmetric
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -485,12 +488,19 @@ def add_to_my_bib(driver, add_pubs, delay, long_delay, logger):
                     else: time.sleep(delay)
         else:
             #print('still trying to click NEXT')
-            try:
-                driver.find_element_by_xpath('//*[@id="nextpage"]').click()
-            except Exception as err:
-                print('Failed to click next for some reason: %s', str(err))
-                logger.warning('Failed to click next for some reason: %s' %err)
-                next_button = False
+            attempt = 0
+            while attempt < 4:
+                try:
+                    driver.find_element_by_xpath('//*[@id="nextpage"]').click()
+                    attempt = 4
+                except Exception as err:
+                    print('Failed to click next for some reason: %s', str(err))
+                    logger.warning('Failed to click next for some reason: %s' %err)
+                    attempt += 1
+                    if attempt == 3:
+                        time.sleep(long_delay)
+                        next_button = False
+                    else: time.sleep(delay)
 
             time.sleep(long_delay)
 
@@ -500,7 +510,8 @@ def add_to_my_bib(driver, add_pubs, delay, long_delay, logger):
         time.sleep(long_delay)
         driver.find_element_by_xpath('/html/body/div[6]/div[1]/button/span[1]').click()
 
-def scrape_citations(cite, count, grants, driver, delay, long_delay, logger, pub_start):
+
+def scrape_citations(cite, count, grants, driver, delay, long_delay, logger):
     load_awards_delay = long_delay
     pmid = re.search('pmid=\\"([0-9]*)\\"', str(cite)).group(1)
     stat = re.search('span class\\=\\"status\\">([\S\s]*)</span>', str(cite)).group(1)
@@ -591,8 +602,8 @@ def scrape_citations(cite, count, grants, driver, delay, long_delay, logger, pub
         pmc_tag = ""
 
     # assemble the pmid, status, and pmc_tag values into rows of a table
-    #row = [pmid, status, pmc_tag, all_awards, (int(count) + int(pub_start))]
-    row = [pmid, status, pmc_tag, all_awards, pub_start]
+    #row = [pmid, status, pmc_tag, all_awards, (int(count))]
+    row = [pmid, status, pmc_tag, all_awards]
     return row
 
 
@@ -665,7 +676,25 @@ def get_nihms(pmids, login, password, delay, long_delay):
         driver.get(search_url)
 
         # scrape the search results and see if there's a nihmsid for the pmid
-        html = driver.find_element_by_class_name('usa-table-borderless').get_attribute('innerText')
+        attempt = 0
+        while attempt < 4:
+            try:
+                html = driver.find_element_by_class_name('usa-table-borderless').get_attribute('innerText')
+                attempt = 4
+            except Exception as err:
+                if attempt < 2:
+                    print('*failed an attempt to scrape the NIHMS manuscript table')
+                    attempt += 1
+                    time.sleep(delay)
+                elif attempt == 2:
+                    print('**failed again, one more try')
+                    attempt += 1
+                    time.sleep(long_delay)
+                else:
+                    print('!!!failed NIHMS scrape for ' + pmid)
+                    html = ''
+                    attempt += 1
+
 
         # initialize lists for the nihms status and progress details
         nihms = ''
@@ -694,6 +723,96 @@ def get_nihms(pmids, login, password, delay, long_delay):
     nihms_frame = pd.DataFrame(rows, columns= ['pmid', 'nihms_id', 'pmc_id', 'reviewer', 'files_uploaded', 'initial_approval', 'nihms_conversion', 'final_approval', 'pmcid_assigned'])
 
     return nihms_frame
+
+
+def icite(pmids):
+    pmids = [pmids[i:i+900] for i in range(0, len(pmids), 900)]
+    # initialize the icite dataframe so it can be appended by the batched loops
+    icite_df = pd.DataFrame(columns = ['pmid', 'year', 'title', 'authors',
+                            'journal', 'is_research_article',
+                            'relative_citation_ratio', 'nih_percentile',
+                            'human', 'animal', 'molecular_cellular', 'apt',
+                            'is_clinical', 'citation_count',
+                            'citations_per_year',
+                            'expected_citations_per_year',
+                            'field_citation_rate', 'provisional', 'x_coord',
+                            'y_coord', 'cited_by_clin', 'cited_by',
+                            'references', 'doi'])
+
+    for pmid_batch in pmids:
+        response = requests.get(
+                    "/".join([
+                        "https://icite.od.nih.gov/api",
+                        "pubs?pmids="+','.join(pmid_batch),
+                    ]),
+                )
+        icite_df = icite_df.append(pd.DataFrame(response.json()['data']))
+
+        icite_df['pmid'] = icite_df['pmid'].astype(str)
+        icite_df['last_import'] = [datetime.datetime.today().strftime("%Y-%m-%d")]*len(icite_df['pmid'])
+
+    icite_df['cited_by_clin_count'] = icite_df['cited_by_clin'].apply(lambda x: len(x) if x!=None else 0)
+
+    return icite_df
+
+
+def altmetric(pmids):
+    a = Altmetric()
+    url = 'http://api.altmetric.com/v1/id/'
+    #pmids = [pmids[i:i+900] for i in range(0, len(pmids), 900)]
+    # initialize the altmetric dataframe so it can be appended by the loop
+    altmet_df = pd.DataFrame(columns = ['title', 'doi', 'pmid', 'pmc',
+                             'ads_id', 'isbns', 'altmetric_jid',
+       'issns', 'journal', 'cohorts', 'abstract', 'context', 'authors', 'type',
+       'handles', 'altmetric_id', 'schema', 'is_oa', 'cited_by_posts_count',
+       'cited_by_tweeters_count', 'cited_by_accounts_count', 'last_updated',
+       'score', 'history', 'url', 'added_on', 'published_on', 'subjects',
+       'readers', 'readers_count', 'images', 'details_url', 'uri',
+       'publisher_subjects', 'cited_by_policies_count', 'scopus_subjects',
+       'cited_by_msm_count', 'cited_by_fbwalls_count', 'abstract_source',
+       'cited_by_patents_count', 'cited_by_wikipedia_count', 'downloads',
+       'cited_by_weibo_count', 'cited_by_feeds_count',
+       'cited_by_peer_review_sites_count', 'cited_by_rdts_count',
+       'cited_by_videos_count', 'cited_by_gplus_count', 'cited_by_rh_count',
+       'handle', 'ordinal_number', 'cited_by_linkedin_count',
+       'cited_by_pinners_count', 'arxiv_id', 'cited_by_qna_count',
+       'attribution', 'editors'])
+
+    for pmid in pmids:
+
+        try:
+            response = a.pmid(pmid)
+        except Exception as err:
+            print("Failed altmetric query for " + str(pmid))
+            response = None
+
+        if response != None:
+            df = pd.DataFrame.from_dict(response, orient='index').transpose()
+        else:
+            df = pd.DataFrame(columns = ['title', 'doi', 'pmid', 'pmc',
+                              'ads_id', 'isbns', 'altmetric_jid',
+       'issns', 'journal', 'cohorts', 'abstract', 'context', 'authors', 'type',
+       'handles', 'altmetric_id', 'schema', 'is_oa', 'cited_by_posts_count',
+       'cited_by_tweeters_count', 'cited_by_accounts_count', 'last_updated',
+       'score', 'history', 'url', 'added_on', 'published_on', 'subjects',
+       'readers', 'readers_count', 'images', 'details_url', 'uri',
+       'publisher_subjects', 'cited_by_policies_count', 'scopus_subjects',
+       'cited_by_msm_count', 'cited_by_fbwalls_count', 'abstract_source',
+       'cited_by_patents_count', 'cited_by_wikipedia_count', 'downloads',
+       'cited_by_weibo_count', 'cited_by_feeds_count',
+       'cited_by_peer_review_sites_count', 'cited_by_rdts_count',
+       'cited_by_videos_count', 'cited_by_gplus_count', 'cited_by_rh_count',
+       'handle', 'ordinal_number', 'cited_by_linkedin_count',
+       'cited_by_pinners_count', 'arxiv_id', 'cited_by_qna_count',
+       'attribution', 'editors'])
+            #df['pmid'] = str(pmid)
+        altmet_df = altmet_df.append(df)
+        #altmet_df = altmet_df.append(pd.DataFrame(response))
+        altmet_df['pmid'] = altmet_df['pmid'].astype(str)
+        altmet_df['last_import'] = [datetime.datetime.today().strftime("%Y-%m-%d")]*len(altmet_df['pmid'])
+        time.sleep(2)
+
+    return altmet_df
 
 
 def pacm_login(login, password):
@@ -779,6 +898,35 @@ def parse_pacm(driver, pacm_root, pmid, grant_list):
     return row
 
 
+def method_a_journal(pub_comp):
+    method_a_df = pd.read_csv('https://www.ncbi.nlm.nih.gov/pmc/front-page/NIH_PA_journal_list.csv', header=None)
+    method_a_df.columns = ['Journal', 'Journal_Short', 'pISSN', 'eISSN', 'Start_Date', 'End_Date']
+    method_a_df['Start_Date'] = pd.to_datetime(method_a_df['Start_Date'])
+    method_a_df['End_Date'] = pd.to_datetime(method_a_df['End_Date'])
+    method_a_df['End_Date'] = method_a_df['End_Date'].fillna(pd.to_datetime('2099-01-01'))
+
+    pub_comp['pub_date'] = pd.to_datetime(pub_comp['pub_date'], format='%Y-%m-%d')
+    method_a = []
+    for row in range(len(pub_comp)):
+        journal = pub_comp['journal_short'][row]
+        pub_date = pd.Timestamp(pub_comp['pub_date'][row])
+        #print(method_a_df['Journal_Short'].str.match == journal)
+        if sum(method_a_df['Journal_Short'].str.match(journal)) > 0:
+            #start = method_a_df['Start_Date'][method_a_df['Journal_Short'] == journal]
+            start = method_a_df.loc[method_a_df['Journal_Short']==journal, 'Start_Date']
+            end = method_a_df.loc[method_a_df['Journal_Short']==journal, 'End_Date']
+            #print(start)
+            #print(end)
+            if sum((pub_date >= start) & (pub_date <= end)) > 0:
+                method_a.append('1')
+            else: method_a.append('0')
+        else: method_a.append('0')
+
+    pub_comp['journal_method'] = method_a
+
+    return pub_comp
+
+
 def RC_update_status(pub_comp):
     # Assign REDCap field values to nihms_comm based on date of completion for the nihms steps
     pub_comp.loc[pub_comp['pmc_id'] == '', 'nihms_comm'] = '1'
@@ -816,6 +964,35 @@ def RC_update_status(pub_comp):
 #    pub_comp.tagging_complete = pub_comp.tagging_complete.apply(lambda x: x if x in '' else datetime.datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
 
     return pub_comp
+
+def load_non_comp(report_id, rc_uri, rc_token, era_login, era_pass, delay, long_delay, logger):
+    project = Project(rc_uri, rc_token)
+    non_comp = project.export_reports(report_id=report_id, format='df')
+    non_comp.reset_index(level = 0, inplace = True)
+    non_comp['pmid'] = non_comp['pmid'].astype(str)
+
+    attempt = 1
+    while attempt <= 3:
+        try:
+            driver = ncbi_login(era_login, era_pass)
+            attempt = 4
+        except Exception as err:
+            logger.warning('Unable to log into ERA Commons, attempt %i; error: %s' % (attempt, str(err)))
+            attempt += 1
+            time.sleep(2)
+
+    time.sleep(delay)
+    driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
+
+    clear_my_bib(driver, delay, logger)
+    print('*Cleared MyBib')
+    time.sleep(long_delay)
+
+    add_to_my_bib(driver, non_comp['pmid'], delay, long_delay, logger)
+
+    driver.close()
+    success_msg = 'Non-Compliant Loaded Into MyBibliography'
+    return success_msg
 
 
 # create function to open a new file to write called MyNCBI-[rppr] then
