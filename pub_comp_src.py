@@ -26,6 +26,10 @@ from importlib import reload
 
 start_time = time.time()
 
+# set delay values for pausing during web scraping actions
+delay = 1
+long_delay = 7
+
 logging.basicConfig(
     filename="test.log",
     level=logging.DEBUG,
@@ -141,30 +145,29 @@ while attempt <= 3:
 
 # get list of publications with during current grant cycle with no pmcid to check on
 # nihms status
-pubs_frame['pub_date'] = pd.to_datetime(pubs_frame['pub_date'], format='%Y-%m-%d')
+#pubs_frame['pub_date'] = pd.to_datetime(pubs_frame['pub_date'], format='%Y-%m-%d')
 #config.start = datetime.strptime(config.start, '%m/%d/%Y')
 
 #!!!!!!! how much of the pubmed results are going to pmc to check for compliance
-#status_pmc = pubs_frame.pmid[(pubs_frame.pub_date > config.start) & (pubs_frame.pmc_id.isnull())]
+#status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > config.start) & (pubs_frame.pmc_id.isnull())])
 #status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > config.start) | (pubs_frame.pmc_id.isnull())])
-#status_pmc = pubs_frame.pmid[pubs_frame.pmc_id.isnull()]
-status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > config.start)])
+status_pmc = list(pubs_frame.pmid[pubs_frame.pmc_id.isnull()])
+#status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > config.start)])
 #status_pmc = list(pubs_frame.pmid)
+#status_pmc = ['30022126', '23116771', '23358483', '32934136', '31525170', '33135480', '32298718', '32524379']
 
 ##!!!!!!!!! DEV ONLY csv file since I can't tell if all pmids are being sent to pmc
 #status_pmc.to_csv('pmids_to_check_in_pmc.csv', index=False)
-with open("pmids_to_check_in_pmc.csv", "w") as f:
-    writer = csv.writer(f)
-    writer.writerows(status_pmc)
+#with open("pmids_to_check_in_pmc.csv", "w") as f:
+#    writer = csv.writer(f)
+#    writer.writerows(status_pmc)
 
-print("length of status_pmc: " + str(len(status_pmc)))
+#print("length of status_pmc: " + str(len(status_pmc)))
 
 ####################### scrape pmc information in batches
 pmc_rows = []
 batch_size = 250
 count = len(status_pmc)
-delay = 2
-long_delay = 5
 
 for start in range(0, count, batch_size):
     end = min(count, start+batch_size)
@@ -194,7 +197,7 @@ for start in range(0, count, batch_size):
         cites = soup.find_all('div', 'citation-wrap')
         print('**!Gonna scrape ' + str(len(cites)) + ' citations now.')
         for x in range(len(cites)):
-            pmc_rows.append(pub_comp_lib.scrape_citations(cites[x], x, variations, driver, delay, long_delay, logger, start))
+            pmc_rows.append(pub_comp_lib.scrape_citations(cites[x], x, variations, driver, delay, long_delay, logger))
         print('**!!Finished a page of scraping citations... got ' + str(len(pmc_rows)) + ' rows.')
         ## check if there's another page of citations to scrape
         time.sleep(delay)
@@ -215,13 +218,10 @@ driver.close()
 print('All done with scraping.  Got ' + str(len(pmc_rows)) + ' rows and expected ' + str(len(status_pmc)) + ' rows.')
 
 ## package the pmc_rows into a data frame
-pmc_frame = pd.DataFrame(pmc_rows, columns=['pmid', 'pmc_status', 'pmc_tags', 'all_awards', 'pub_num'])
+pmc_frame = pd.DataFrame(pmc_rows, columns=['pmid', 'pmc_status', 'pmc_tags', 'all_awards'])
 pmc_frame.to_csv('DEV_batch_pmc_status.csv', index=False)
 # change blank values to nan- makes column merging easier
 pmc_frame[pmc_frame == ''] = np.nan
-
-# drop the pub_num column after the data frame has been written to csv file
-pmc_frame = pmc_frame.drop('pub_num', 1)
 
 # get list of publications with non-compliant pmc status to check on
 # nihms status
@@ -236,6 +236,7 @@ nihms_frame.to_csv('DEV_batch_nihms_status.csv', index=False)
 # change blank values to nan- makes column merging easier
 nihms_frame[pmc_frame == ''] = np.nan
 
+print('NIHMS data retrieved successfully')
 ################# END NEW NIHMS Section
 
 ###################### PACM Public Access Compliance Monitor for NIHMS status
@@ -261,9 +262,61 @@ nihms_frame[pmc_frame == ''] = np.nan
 #    driver.quit()
 ###################### END PACM Section
 
+################# PUBLICATION STATISTICS
+icite_df = pub_comp_lib.icite(pubs_frame['pmid'])
+icite_df.columns = ['pmid', 'icite_year', 'icite_title', 'icite_authors',
+                            'icite_journal', 'icite_is_research_article',
+                            'icite_relative_citation_ratio',
+                            'icite_nih_percentile', 'icite_human',
+                            'icite_animal', 'icite_molecular_cellular',
+                            'icite_apt', 'icite_is_clinical',
+                            'icite_citation_count', 'icite_citations_per_year',
+                            'icite_expected_citations_per_year',
+                            'icite_field_citation_rate', 'icite_provisional',
+                            'icite_x_coord', 'icite_y_coord',
+                            'icite_cited_by_clin', 'icite_cited_by',
+                            'icite_references', 'icite_doi',
+                            'icite_last_import_date',
+                            'icite_cited_by_clin_count']
+
+print('iCite data retrieved successfully')
+
+#altmetric_df = pub_comp_lib.altmetric(nihms_frame['pmid'])
+altmetric_df = pub_comp_lib.altmetric(pubs_frame['pmid'])
+altmetric_df.columns = ['altmetric_title', 'altmetric_doi', 'altmetric_pmid',
+        'altmetric_pmc', 'altmetric_ads_id', 'altmetric_isbns',
+        'altmetric_jid', 'altmetric_issns', 'altmetric_journal',
+        'altmetric_cohorts', 'altmetric_abstract', 'altmetric_context',
+        'altmetric_authors', 'altmetric_type', 'altmetric_handles',
+        'altmetric_altmetric_id', 'altmetric_schema', 'altmetric_is_oa',
+        'altmetric_cited_by_posts_count', 'altmetric_cited_by_tweeters_count',
+        'altmetric_cited_by_accounts_count', 'altmetric_last_updated',
+        'altmetric_score', 'altmetric_history', 'altmetric_url',
+        'altmetric_added_on', 'altmetric_published_on', 'altmetric_subjects',
+        'altmetric_readers', 'altmetric_readers_count', 'altmetric_images',
+        'altmetric_details_url', 'altmetric_uri',
+        'altmetric_publisher_subjects', 'altmetric_cited_by_policies_count',
+        'altmetric_scopus_subjects', 'altmetric_cited_by_msm_count',
+        'altmetric_cited_by_fbwalls_count', 'altmetric_abstract_source',
+        'altmetric_cited_by_patents_count',
+        'altmetric_cited_by_wikipedia_count', 'altmetric_downloads',
+        'altmetric_cited_by_weibo_count', 'altmetric_cited_by_feeds_count',
+        'altmetric_cited_by_peer_review_sites_count',
+        'altmetric_cited_by_rdts_count', 'altmetric_cited_by_videos_count',
+        'altmetric_cited_by_gplus_count', 'altmetric_cited_by_rh_count',
+        'altmetric_handle', 'altmetric_ordinal_number',
+        'altmetric_cited_by_linkedin_count', 'altmetric_cited_by_pinners_count',
+        'altmetric_arxiv_id', 'altmetric_cited_by_qna_count',
+        'altmetric_attribution', 'altmetric_editors',
+        'altmetric_last_import_date']
+altmetric_df['pmid'] = altmetric_df['altmetric_pmid']
+print('Altmetric data retrieved successfully')
+
 ########## join pmids, pmc, and nihms tables and upload into REDCap
 pub_comp = pd.merge(pubs_frame, pmc_frame, on='pmid', how='outer')
 pub_comp = pd.merge(pub_comp, nihms_frame, on='pmid', how='outer')
+pub_comp = pd.merge(pub_comp, icite_df, on='pmid', how='outer')
+pub_comp = pd.merge(pub_comp, altmetric_df, on='pmid', how='outer')
 
 
 # include nihms ids from all dataframes into a final column
@@ -284,13 +337,22 @@ pub_comp = pub_comp.drop(['pmc_id_x', 'pmc_id_y'], axis=1)
 pub_comp = pub_comp.drop(['pmc_status_x', 'pmc_status_y'], axis=1)
 
 pub_comp['nihms_comm'] = ''
+pub_comp['py_queried'] = [datetime.today().strftime("%Y-%m-%d")]*len(pub_comp['pmid'])
+
+pub_comp = pub_comp_lib.method_a_journal(pub_comp)
+
+# write a copy to a .csv file
+pub_comp.to_csv('batch_comprehensive_status.csv', index=False)
 
 ### Update REDCap project if one is being used to track publications
 if config.rc_token is not None and config.rc_uri is not None and len(pmids) < 5000:
     pub_comp = pub_comp_lib.RC_update_status(pub_comp)
     success = project.import_records(pub_comp)
 
-# write a copy to a .csv file
-pub_comp.to_csv('batch_comprehensive_status.csv', index=False)
+
 
 print('Publication compliance status update process complete in {0:0.1f} minutes' .format((time.time()-start_time)/60))
+
+#non_comps = pub_comp_lib.load_non_comp('9638', config.rc_uri, config.rc_token, config.ncbi_login, config.ncbi_pass, delay, long_delay, logger)
+
+#print(non_comps)
