@@ -9,6 +9,7 @@ import pandas as pd
 import time
 from bs4 import BeautifulSoup
 import unicodedata
+import lxml
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -285,7 +286,7 @@ def summary(pmids, ncbi_key, grants):
 				                             retstart=start, retmax=batch_size,
 				                             webenv=webenv, query_key=query_key,
 				                             retmode='xml')
-				records.extend(fetch_handle.read())
+				records.extend(str(fetch_handle.read()))
 				fetch_handle.close
 				attempt = 4
 			except HTTPError as err:
@@ -459,10 +460,19 @@ def add_to_my_bib(driver, add_pubs, delay, long_delay, logger):
 
             time.sleep(long_delay)
 
-    try:
-        driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
-    except Exception as err:
-        driver.find_element_by_xpath('/html/body/div[6]/div[1]/button/span[1]').click()
+    attempt = 0
+    while attempt < 4:
+        try:
+            driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
+            #driver.find_element_by_xpath('/html/body/div[4]/div[1]/button').click()
+            attempt = 4
+        except Exception as err:
+            attempt += 1
+            print('Failed to close the add publications box for some reason: %s', str(err))
+            if attempt == 3:
+                time.sleep(long_delay)
+                driver.find_element_by_xpath('/html/body/div[6]/div[1]/button/span[1]').click()
+            else: time.sleep(delay)
 
 def scrape_citations(cite, count, grants, driver, delay, long_delay, logger, pub_start):
     load_awards_delay = long_delay

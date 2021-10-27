@@ -3,7 +3,7 @@ import logging
 from Bio import Entrez
 import numpy as np
 import pandas as pd
-from redcap import Project
+from redcap import Project  # "PyCap" library
 from datetime import datetime
 import csv
 
