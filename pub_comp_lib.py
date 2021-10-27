@@ -504,11 +504,18 @@ def add_to_my_bib(driver, add_pubs, delay, long_delay, logger):
 
             time.sleep(long_delay)
 
-    try:
-        driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
-    except Exception as err:
-        time.sleep(long_delay)
-        driver.find_element_by_xpath('/html/body/div[6]/div[1]/button/span[1]').click()
+    attempt = 0
+    while attempt < 4:
+        try:
+            driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
+            attempt = 4
+        except Exception as err:
+            time.sleep(long_delay)
+            attempt += 1
+            #driver.find_element_by_xpath('/html/body/div[6]/div[1]/button/span[1]').click()
+            if attempt == 3:
+                driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
+                time.sleep(long_delay)
 
 
 def scrape_citations(cite, count, grants, driver, delay, long_delay, logger):
