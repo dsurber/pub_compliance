@@ -234,7 +234,7 @@ nihms_frame = pub_comp_lib.get_nihms(status_nihms, config.ncbi_login, config.ncb
 
 nihms_frame.to_csv('DEV_batch_nihms_status.csv', index=False)
 # change blank values to nan- makes column merging easier
-nihms_frame[pmc_frame == ''] = np.nan
+nihms_frame[nihms_frame == ''] = np.nan
 
 print('NIHMS data retrieved successfully')
 ################# END NEW NIHMS Section
