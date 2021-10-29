@@ -156,14 +156,6 @@ status_pmc = list(pubs_frame.pmid[pubs_frame.pmc_id.isnull()])
 #status_pmc = list(pubs_frame.pmid)
 #status_pmc = ['30022126', '23116771', '23358483', '32934136', '31525170', '33135480', '32298718', '32524379']
 
-##!!!!!!!!! DEV ONLY csv file since I can't tell if all pmids are being sent to pmc
-#status_pmc.to_csv('pmids_to_check_in_pmc.csv', index=False)
-#with open("pmids_to_check_in_pmc.csv", "w") as f:
-#    writer = csv.writer(f)
-#    writer.writerows(status_pmc)
-
-#print("length of status_pmc: " + str(len(status_pmc)))
-
 ####################### scrape pmc information in batches
 pmc_rows = []
 batch_size = 250
