@@ -1291,6 +1291,10 @@ def query_icite(logger, timeframe, rc_uri, rc_token):
     else:
         pmids = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe)])
     
+    ##Dev Check!!
+    print("Checking iCite for %i publications"% len(pubs_frame['pmid']))
+    #Dev Check!!
+
     icite_df = icite(pmids)
     icite_df.columns = ['pmid', 'icite_year', 'icite_title', 'icite_authors',
                                 'icite_journal', 'icite_is_research_article',
@@ -1332,7 +1336,7 @@ def query_altmetric(logger, timeframe, rc_uri, rc_token):
         pubs_frame = pubs_frame[(pubs_frame.pub_date >= timeframe)]
     
     ##Dev Check!!
-    print("Im going to check Altmetric.com for %i publications"% len(pubs_frame['pmid']))
+    print("Checking Altmetric.com for %i publications"% len(pubs_frame['pmid']))
     #Dev Check!!
     
     altmetric_df = altmetric(pubs_frame['pmid'])

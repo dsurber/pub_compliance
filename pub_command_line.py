@@ -33,6 +33,7 @@ start_time = time.time()
 delay = 2
 long_delay = 5
 
+# initiatlize logger
 logging.basicConfig(
     filename="test.log",
     level=logging.DEBUG,
@@ -40,8 +41,6 @@ logging.basicConfig(
     )
 
 logger = logging.getLogger(__name__)
-
-params = pub_comp_lib.check_argv(sys.argv, config.start)
 
 # loop over all config grants for cleanup
 for x in range(len(config.grant_list)):
@@ -53,13 +52,14 @@ variations = []
 for grant in config.grant_list:
     variations.extend(pub_comp_lib.variety(grant))
 
-#dev check!!
-print('Params entered are: %s'% params)
-#dev check!!
+### check and process arguments passed at command line when script was called
+params = pub_comp_lib.check_argv(sys.argv, config.start)
 
+### assign checked command line parameters to variables
 db = params[0]
 timeframe = params[1]
 
+### based on command line arguments, query databases using pub_comp_lib functions
 if 'pubmed' in db:
     pubmed_start = time.time()
     print('PubMed started at '+ str(datetime.now()))
