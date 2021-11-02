@@ -1275,10 +1275,10 @@ def query_nihms(logger, timeframe, delay, long_delay, ncbi_creds, ncbi_pass, rc_
     return
 
 
-def query_icite(logger, timeframe):
-    if config.rc_token is not None and config.rc_uri is not None:
+def query_icite(logger, timeframe, rc_uri, rc_token):
+    if rc_token is not None and rc_uri is not None:
         # get the full pmid list from the REDCap project
-        project = Project(config.rc_uri, config.rc_token)
+        project = Project(rc_uri, rc_token)
         pubs_frame = pd.DataFrame(project.export_records(fields=['pmid', 'pub_date'], format='json'))
 
     # get list of publications with during current grant cycle with no pmcid to check on
@@ -1311,16 +1311,16 @@ def query_icite(logger, timeframe):
     icite_df.to_csv('dev-icite_query_output.csv', index=False)
     
     ### Update REDCap project if one is being used to track publications
-    if config.rc_token is not None and config.rc_uri is not None:
+    if rc_token is not None and rc_uri is not None:
         success = project.import_records(icite_df)
         
     return
 
 
-def query_altmetric(logger, timeframe):
-    if config.rc_token is not None and config.rc_uri is not None:
+def query_altmetric(logger, timeframe, rc_uri, rc_token):
+    if rc_token is not None and rc_uri is not None:
         # get the full pmid list from the REDCap project
-        project = Project(config.rc_uri, config.rc_token)
+        project = Project(rc_uri, rc_token)
         pubs_frame = pd.DataFrame(project.export_records(fields=['pmid', 'pub_date'], format='json'))
 
     # get list of publications with during current grant cycle with no pmcid to check on
@@ -1368,7 +1368,7 @@ def query_altmetric(logger, timeframe):
     altmetric_df.to_csv('dev-altmetric_query_output.csv', index=False)
     
     ### Update REDCap project if one is being used to track publications
-    if config.rc_token is not None and config.rc_uri is not None:
+    if rc_token is not None and rc_uri is not None:
         success = project.import_records(altmetric_df)
         
     return

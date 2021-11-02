@@ -84,13 +84,13 @@ if 'nihms' in db:
 if 'icite' in db:
     icite_start = time.time()
     print('iCite started at '+ str(datetime.now()))
-    pub_comp_lib.query_icite(logger, timeframe)
+    pub_comp_lib.query_icite(logger, timeframe, config.rc_uri, config.rc_token)
     print('iCite query complete in {0:0.1f} minutes' .format((time.time()-icite_start)/60))
 
 if 'altmetric' in db:
     altmetric_start = time.time()
     print('Altmetric started at '+ str(datetime.now()))
-    pub_comp_lib.query_altmetric(logger, timeframe)
+    pub_comp_lib.query_altmetric(logger, timeframe, config.rc_uri, config.rc_token)
     print('Altmetric query complete in {0:0.1f} minutes' .format((time.time()-altmetric_start)/60))
     
 print('All queries complete in {0:0.1f} minutes' .format((time.time()-start_time)/60))
