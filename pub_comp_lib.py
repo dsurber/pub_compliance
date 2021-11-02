@@ -1054,7 +1054,7 @@ def check_argv(argv, config_start):
     return [db, timeframe]
 
 
-def query_pubmed(logger, variations, ncbi_api):
+def query_pubmed(logger, variations, ncbi_api, rc_token = 'None', rc_uri = 'None'):
     ### Get pmids from pubmed for all grant variations
     # create variables for pubmed queries
     Entrez.email = "Your.Name.Here@example.org"
@@ -1092,10 +1092,10 @@ def query_pubmed(logger, variations, ncbi_api):
     logger.info('All grant queries complete.')
     
     ### Update pmid set if a REDCap project is being used to track publications
-    if config.rc_token is not None and config.rc_uri is not None:
+    if rc_token is not None and rc_uri is not None:
         old_pmids = []
         # get the full pmid list from the REDCap project
-        project = Project(config.rc_uri, config.rc_token)
+        project = Project(rc_uri, rc_token)
         rc_pmids = project.export_records(fields=['pmid'], format='json')
         for rc_pmid in rc_pmids:
             old_pmids.append(rc_pmid['pmid'])
@@ -1114,7 +1114,7 @@ def query_pubmed(logger, variations, ncbi_api):
     ###################### PubMed Summary Section
     ### Get table of publication details from pubmed for pmids
     # make dataframe of publications
-    pubs_frame = summary(pmids, config.ncbi_api, variations)
+    pubs_frame = summary(pmids, ncbi_api, variations)
     # add compliant pmc status for publications with a pmcid
     pubs_frame['pmc_status'] = np.where(pubs_frame.pmcid == '', '', '1')
     # write table
@@ -1133,7 +1133,7 @@ def query_pubmed(logger, variations, ncbi_api):
     pubs_frame.to_csv('dev-pubmed_query_output.csv', index=False)
     
     ### Update REDCap project if one is being used to track publications
-    if config.rc_token is not None and config.rc_uri is not None:
+    if rc_token is not None and rc_uri is not None:
         success = project.import_records(pubs_frame)
         
     return
