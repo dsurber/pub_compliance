@@ -1141,12 +1141,12 @@ def query_pubmed(logger, variations, ncbi_api, rc_uri = 'None', rc_token = 'None
     ###################### END PubMed Summary Section
 
 
-def query_pmc(logger, timeframe, variations, delay, long_delay):
+def query_pmc(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi_pass, rc_uri, rc_token):
     # log into era commons
     attempt = 1
     while attempt < 4:
         try:
-            driver = ncbi_login(config.ncbi_login, config.ncbi_pass)
+            driver = ncbi_login(ncbi_creds, ncbi_pass)
             attempt = 4
         except Exception as err:
             logger.warning('Unable to log into ERA Commons, attempt %i; error: %s' % (attempt, str(err)))
@@ -1156,9 +1156,9 @@ def query_pmc(logger, timeframe, variations, delay, long_delay):
                 print('Failed to Log into eRA Commons, no data collected.')
                 return
             
-    if config.rc_token is not None and config.rc_uri is not None:
+    if rc_token is not None and rc_uri is not None:
         # get the full pmid list from the REDCap project
-        project = Project(config.rc_uri, config.rc_token)
+        project = Project(rc_uri, rc_token)
         pubs_frame = pd.DataFrame(project.export_records(fields=['pmid', 'pmc_id', 'pub_date'], format='json'))
 
     # get list of publications with during current grant cycle with no pmcid to check on
@@ -1213,10 +1213,8 @@ def query_pmc(logger, timeframe, variations, delay, long_delay):
                 scrape_more = False
                 print('**!!looks like no next button on publication number:' + str(end) + ' with ' + str(len(pmc_rows)) + ' rows and last pmid logged is ' + str(pmc_rows[-1:]))
             else: driver.find_element_by_xpath('//*[@id="pager1"]/ul/li[4]/a').click()
-        #if count > 1000:
-        time.sleep(15)
-        print('***Completed ' + str(start) + ' : ' + str(end) + '    minutes-{0:0.1f}' .format((time.time()-start_time)/60))
-        #time.sleep(delay)
+
+        time.sleep(delay)
     driver.close()
 
     print('All done with scraping.  Got ' + str(len(pmc_rows)) + ' rows and expected ' + str(len(status_pmc)) + ' rows.')
@@ -1233,7 +1231,7 @@ def query_pmc(logger, timeframe, variations, delay, long_delay):
     pmc_frame.to_csv('dev-pmc_query_output.csv', index=False)
     
     ### Update REDCap project if one is being used to track publications
-    if config.rc_token is not None and config.rc_uri is not None:
+    if rc_token is not None and rc_uri is not None:
         success = project.import_records(pmc_frame)
         
     return

@@ -63,13 +63,15 @@ timeframe = params[1]
 if 'pubmed' in db:
     pubmed_start = time.time()
     print('PubMed started at '+ str(datetime.now()))
-    pub_comp_lib.query_pubmed(logger, variations, config.ncbi_api, config.rc_uri, config.rc_token)
+    pub_comp_lib.query_pubmed(logger, variations, config.ncbi_api, config.rc_uri, 
+    							config.rc_token)
     print('PubMed query complete in {0:0.1f} minutes' .format((time.time()-pubmed_start)/60))
 
 if 'pmc' in db:
     pmc_start = time.time()
     print('PMC started at '+ str(datetime.now()))
-    pub_comp_lib.query_pmc(logger, timeframe, variations, delay, long_delay)
+    pub_comp_lib.query_pmc(logger, timeframe, variations, delay, long_delay, config.ncbi_login, 
+    						config.ncbi_pass, config.rc_uri, config.rc_token)
     print('PMC query complete in {0:0.1f} minutes' .format((time.time()-pmc_start)/60))
     
 if 'nihms' in db:
