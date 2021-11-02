@@ -63,7 +63,7 @@ timeframe = params[1]
 if 'pubmed' in db:
     pubmed_start = time.time()
     print('PubMed started at '+ str(datetime.now()))
-    pub_comp_lib.query_pubmed(logger, variations, config.ncbi_api, config.rc_uri, config.rc_api)
+    pub_comp_lib.query_pubmed(logger, variations, config.ncbi_api, config.rc_uri, config.rc_token)
     print('PubMed query complete in {0:0.1f} minutes' .format((time.time()-pubmed_start)/60))
 
 if 'pmc' in db:
