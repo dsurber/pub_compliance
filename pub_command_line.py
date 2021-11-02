@@ -41,7 +41,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-params = pub_comp_lib.check_argv(sys.argv)
+params = pub_comp_lib.check_argv(sys.argv, config.start)
 
 #dev check!!
 print('Params entered are: %s'% params)

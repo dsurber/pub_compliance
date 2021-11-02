@@ -2,7 +2,7 @@ from Bio import Entrez
 from Bio.Entrez import efetch
 from Bio.Entrez import read
 import regex as re
-import datetime
+from datetime import datetime
 import time
 import logging
 import pandas as pd
@@ -189,7 +189,7 @@ def details(pub, variations):
     pub_date = year+ '-' + month + '-' + day
     # check if month is letters and change into numerical date type
     if re.search('[a-zA-Z]', pub_date) is not None:
-        pub_date = datetime.datetime.strptime(pub_date,
+        pub_date = datetime.strptime(pub_date,
                                               "%Y-%b-%d").strftime("%Y-%m-%d")
 
     if re.search('</JournalIssue>.*?<ISOAbbreviation>(.*?)</ISOAbbre',
@@ -766,7 +766,7 @@ def icite(pmids):
         icite_df = icite_df.append(pd.DataFrame(response.json()['data']))
 
         icite_df['pmid'] = icite_df['pmid'].astype(str)
-        icite_df['last_import'] = [datetime.datetime.today().strftime("%Y-%m-%d")]*len(icite_df['pmid'])
+        icite_df['last_import'] = [datetime.today().strftime("%Y-%m-%d")]*len(icite_df['pmid'])
 
     icite_df['cited_by_clin_count'] = icite_df['cited_by_clin'].apply(lambda x: len(x) if x!=None else 0)
 
@@ -826,7 +826,7 @@ def altmetric(pmids):
         altmet_df = altmet_df.append(df)
         #altmet_df = altmet_df.append(pd.DataFrame(response))
         altmet_df['pmid'] = altmet_df['pmid'].astype(str)
-        altmet_df['last_import'] = [datetime.datetime.today().strftime("%Y-%m-%d")]*len(altmet_df['pmid'])
+        altmet_df['last_import'] = [datetime.today().strftime("%Y-%m-%d")]*len(altmet_df['pmid'])
         time.sleep(2)
 
     return altmet_df
@@ -969,16 +969,16 @@ def RC_update_status(pub_comp):
 
     # Update nihms completion dates to importabl REDCap format (YYYY-MM-DD)
 #    pub_comp['files_deposited'] = pub_comp['files_deposited'].fillna('')
-#    pub_comp.files_deposited = pub_comp.files_deposited.apply(lambda x: x if x in '' else datetime.datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
+#    pub_comp.files_deposited = pub_comp.files_deposited.apply(lambda x: x if x in '' else datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
 
 #    pub_comp['initial_approval'] = pub_comp['initial_approval'].fillna('')
-#    pub_comp.initial_approval = pub_comp.initial_approval.apply(lambda x: x if x in '' else datetime.datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
+#    pub_comp.initial_approval = pub_comp.initial_approval.apply(lambda x: x if x in '' else datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
 
 #    pub_comp['final_approval'] = pub_comp['final_approval'].fillna('')
-#    pub_comp.final_approval = pub_comp.final_approval.apply(lambda x: x if x in '' else datetime.datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
+#    pub_comp.final_approval = pub_comp.final_approval.apply(lambda x: x if x in '' else datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
 
 #    pub_comp['tagging_complete'] = pub_comp['tagging_complete'].fillna('')
-#    pub_comp.tagging_complete = pub_comp.tagging_complete.apply(lambda x: x if x in '' else datetime.datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
+#    pub_comp.tagging_complete = pub_comp.tagging_complete.apply(lambda x: x if x in '' else datetime.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d"))
 
     return pub_comp
 
@@ -1025,7 +1025,7 @@ def write_myncbi(pmid_list, title_list, rppr):
     return 'Complete'
 
 
-def check_argv(argv):
+def check_argv(argv, config_start):
     db = 'all'
     timeframe = 'all'
     
@@ -1047,7 +1047,7 @@ def check_argv(argv):
             db = db_array[1:]
         timeframe = argv[2]
         if timeframe == 'current':
-            timeframe = datetime.strptime(config.start, '%m/%d/%Y')
+            timeframe = datetime.strptime(config_start, '%m/%d/%Y')
     else:
         raise ValueError
 
