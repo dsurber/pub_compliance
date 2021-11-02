@@ -43,6 +43,16 @@ logger = logging.getLogger(__name__)
 
 params = pub_comp_lib.check_argv(sys.argv, config.start)
 
+# loop over all config grants for cleanup
+for x in range(len(config.grant_list)):
+    # remove all whitespace, leading or trailing hyphenates - clean_grant.py
+    config.grant_list[x] = pub_comp_lib.clean(config.grant_list[x])
+
+### Create list for each grant with 34 grant variations - grant_vari.py
+variations = []
+for grant in config.grant_list:
+    variations.extend(pub_comp_lib.variety(grant))
+
 #dev check!!
 print('Params entered are: %s'% params)
 #dev check!!
