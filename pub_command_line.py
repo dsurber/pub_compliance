@@ -1,4 +1,10 @@
 import sys # needed to accept args from command line
+import time
+import logging
+from datetime import datetime
+
+import config
+import pub_comp_lib
 
 ########## Initial Design Notes
 # two args: database and time 
@@ -35,7 +41,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-params = check_argv(sys.argv)
+params = pub_comp_lib.check_argv(sys.argv)
 
 #dev check!!
 print('Params entered are: %s'% params)
@@ -47,31 +53,31 @@ timeframe = params[1]
 if 'pubmed' in db:
     pubmed_start = time.time()
     print('PubMed started at '+ str(datetime.now()))
-    query_pubmed(logger, variations)
+    pub_comp_lib.query_pubmed(logger, variations)
     print('PubMed query complete in {0:0.1f} minutes' .format((time.time()-pubmed_start)/60))
 
 if 'pmc' in db:
     pmc_start = time.time()
     print('PMC started at '+ str(datetime.now()))
-    query_pmc(logger, timeframe, variations, delay, long_delay)
+    pub_comp_lib.query_pmc(logger, timeframe, variations, delay, long_delay)
     print('PMC query complete in {0:0.1f} minutes' .format((time.time()-pmc_start)/60))
     
 if 'nihms' in db:
     nihms_start = time.time()
     print('NIHMS started at '+ str(datetime.now()))
-    query_nihms(logger, timeframe, delay, long_delay)
+    pub_comp_lib.query_nihms(logger, timeframe, delay, long_delay)
     print('NIHMS query complete in {0:0.1f} minutes' .format((time.time()-nihms_start)/60))
     
 if 'icite' in db:
     icite_start = time.time()
     print('iCite started at '+ str(datetime.now()))
-    query_icite(logger, timeframe)
+    pub_comp_lib.query_icite(logger, timeframe)
     print('iCite query complete in {0:0.1f} minutes' .format((time.time()-icite_start)/60))
 
 if 'altmetric' in db:
     altmetric_start = time.time()
     print('Altmetric started at '+ str(datetime.now()))
-    query_altmetric(logger, timeframe)
+    pub_comp_lib.query_altmetric(logger, timeframe)
     print('Altmetric query complete in {0:0.1f} minutes' .format((time.time()-altmetric_start)/60))
     
 print('All queries complete in {0:0.1f} minutes' .format((time.time()-start_time)/60))
