@@ -1054,11 +1054,11 @@ def check_argv(argv, config_start):
     return [db, timeframe]
 
 
-def query_pubmed(logger, variations):
+def query_pubmed(logger, variations, ncbi_api):
     ### Get pmids from pubmed for all grant variations
     # create variables for pubmed queries
     Entrez.email = "Your.Name.Here@example.org"
-    Entrez.api_key = config.ncbi_api
+    Entrez.api_key = ncbi_api
 
     # create set for unique list of all pmids from querying pubmed with each
     # grant variation
