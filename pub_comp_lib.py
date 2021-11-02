@@ -363,30 +363,29 @@ def ncbi_login(login, password):
     driver = webdriver.Chrome(options = options)
     driver.set_window_size(1440, 900)
     driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
+    ## OR: https://www.ncbi.nlm.nih.gov/account/
     driver.switch_to.frame(driver.find_element_by_id('loginframe'))
-    driver.find_element_by_id('nih').click()
+    driver.find_element_by_id('era').click()
     time.sleep(3)
     driver.find_element_by_id('USER').send_keys(login)
     driver.find_element_by_id('PASSWORD').send_keys(password)
     driver.find_element_by_xpath('//*[@id="CredSelectorNotice"]/div/button').click()
     return driver
 
-
-def open_my_bib(driver, url, my_bib, delay, long_delay, login, password):
-    driver.get(my_bib)
-    attempt = 0
-    while attempt <= 3:
-        try:
-            driver.find_element_by_xpath('//*[@id="503-content"]').is_displayed() == True
-            time.sleep(long_delay)
-            attempt += 1
-            if attempt == 3:
-                print('My Bibliography webpage is having trouble loading. Please wait a few minutes and trying again...')
-                driver.quit()
-                return 'Fail'
-        except Exception as err:
-            attempt = 4
-            return driver
+def nihms_login(login, password):
+    # set chrome driver options to headless
+    options = Options()
+    options.headless = True
+    driver = webdriver.Chrome(options = options)
+    driver.set_window_size(1440, 900)
+    driver.get('https://www.nihms.nih.gov/login/?next=/submission/')
+    time.sleep(3)
+    driver.find_element_by_link_text('eRA Commons').click()
+    time.sleep(3)
+    driver.find_element_by_id('USER').send_keys(login)
+    driver.find_element_by_id('PASSWORD').send_keys(password)
+    driver.find_element_by_xpath('//*[@id="CredSelectorNotice"]/div/button').click()
+    return driver
 
 
 def clear_my_bib(driver, delay, logger):
@@ -669,13 +668,24 @@ def scrape_nihms_status(driver, nihms, pmid, delay, long_delay):
 def get_nihms(pmids, login, password, delay, long_delay):
     rows = []
 
-    # log into ncbi
-    driver = ncbi_login(login, password)
 
-    # navigate to nihms since already logged in to ncbi
+    attempt = 1
+    while attempt < 4:
+        try:
+            driver = nihms_login(login, password)
+            attempt = 4
+        except Exception as err:
+            logger.warning('Unable to log into ERA Commons, attempt %i; error: %s' % (attempt, str(err)))
+            attempt += 1
+            time.sleep(2)
+            if attempt == 3:
+                print('Failed to Log into eRA Commons, no data collected.')
+                return
+
+    # navigate to nihms
     driver.get('https://www.nihms.nih.gov/submission/')
     # click xpath for the NCBI access button - in case of errors, verify this xpath
-    driver.find_element_by_xpath('//*[@id="react-app"]/div/div/div[3]/div[3]/a').click()
+    #driver.find_element_by_xpath('//*[@id="react-app"]/div/div/div[3]/div[3]/a').click()
 
     # loop through pmids and get nihms status and progress details that are available
     for pmid in pmids:
@@ -1013,3 +1023,353 @@ def write_myncbi(pmid_list, title_list, rppr):
             myncbi.write('\n\n')
         myncbi.close
     return 'Complete'
+
+
+def check_argv(argv):
+    db = 'all'
+    timeframe = 'all'
+    
+    argv_count = len(argv)
+    db_array = ['all', 'pubmed', 'pmc', 'nihms', 'icite', 'altmetric']
+    timeframe_array = ['all', 'current']
+    
+    if argv_count == 1:
+        db = db_array[1:]
+        timeframe = 'all'
+    elif argv_count == 2 and argv[1] in db_array:
+        db = argv[1]
+        if db == 'all':
+            db = db_array[1:]
+        timeframe = 'all'
+    elif argv_count == 3 and argv[1] in db_array and argv[2] in timeframe_array:
+        db = argv[1]
+        if db == 'all':
+            db = db_array[1:]
+        timeframe = argv[2]
+        if timeframe == 'current':
+            timeframe = datetime.strptime(config.start, '%m/%d/%Y')
+    else:
+        raise ValueError
+
+    return [db, timeframe]
+
+
+def query_pubmed(logger, variations):
+    ### Get pmids from pubmed for all grant variations
+    # create variables for pubmed queries
+    Entrez.email = "Your.Name.Here@example.org"
+    Entrez.api_key = config.ncbi_api
+
+    # create set for unique list of all pmids from querying pubmed with each
+    # grant variation
+    pmids = set()
+    # query pubmed for pmids associated with each grant variation
+    logger.info("Starting pubmed queries...")
+    pubmed_results = []
+
+    for grant in variations:
+        attempt = 1
+        while attempt <= 3:
+            try:
+                handle = Entrez.esearch(db='pubmed', term=grant,
+                                        field='grant', retmax=5000,
+                                        usehistory='y', retmode='xml')
+                record = Entrez.read(handle)
+                handle.close()
+                if int(record['Count']) > 0:
+                    pubmed_results.append(record)
+                    pmids.update(record['IdList'])
+                    logger.info('Entrez ESearch returns %i Ids for %s' % (int(record['Count']), str(grant)))
+                attempt = 4
+            except Exception as err:
+                logger.warning('Received error from server: %s' % str(err))
+                logger.warning('Attempt %i of 3 for grant %s.' % (attempt,
+                                                                  str(grant)))
+                attempt += 1
+                time.sleep(2)
+        logger.debug('Grant %s queried.' % str(grant))
+
+    logger.info('All grant queries complete.')
+    
+    ### Update pmid set if a REDCap project is being used to track publications
+    if config.rc_token is not None and config.rc_uri is not None:
+        old_pmids = []
+        # get the full pmid list from the REDCap project
+        project = Project(config.rc_uri, config.rc_token)
+        rc_pmids = project.export_records(fields=['pmid'], format='json')
+        for rc_pmid in rc_pmids:
+            old_pmids.append(rc_pmid['pmid'])
+        new_pmids = list(pmids.difference(old_pmids))   # newly discovered pmids
+        pmids.update(old_pmids)
+        # date of first discovery
+        if len(new_pmids) > 0:
+            first_disc = [datetime.today().strftime("%Y-%m-%d")]*len(new_pmids)
+            # create data frame of new_pmids with date of first dicovery and
+            # import into REDCap project
+            # create data frame using lists and import into redcap
+            first_discovered_frame = pd.DataFrame(np.column_stack([new_pmids, first_disc]),
+                                columns=['pmid', 'first_discovered'])
+            response = project.import_records(first_discovered_frame)
+
+    ###################### PubMed Summary Section
+    ### Get table of publication details from pubmed for pmids
+    # make dataframe of publications
+    pubs_frame = summary(pmids, config.ncbi_api, variations)
+    # add compliant pmc status for publications with a pmcid
+    pubs_frame['pmc_status'] = np.where(pubs_frame.pmcid == '', '', '1')
+    # write table
+    pubs_frame.to_csv('batch_pubmed_frame.csv', index=False)
+
+    # change blank values to nan- makes column merging easier
+    pubs_frame[pubs_frame == ''] = np.nan
+
+    # check for method a journals
+    pubs_frame = method_a_journal(pubs_frame)
+    
+    #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    pubs_frame = pubs_frame.rename(columns={'pmcid':'pmc_id', 'nihmsid':'nihms_id'})
+    
+    # write a copy to a .csv file
+    pubs_frame.to_csv('dev-pubmed_query_output.csv', index=False)
+    
+    ### Update REDCap project if one is being used to track publications
+    if config.rc_token is not None and config.rc_uri is not None:
+        success = project.import_records(pubs_frame)
+        
+    return
+    ###################### END PubMed Summary Section
+
+
+def query_pmc(logger, timeframe, variations, delay, long_delay):
+    # log into era commons
+    attempt = 1
+    while attempt < 4:
+        try:
+            driver = ncbi_login(config.ncbi_login, config.ncbi_pass)
+            attempt = 4
+        except Exception as err:
+            logger.warning('Unable to log into ERA Commons, attempt %i; error: %s' % (attempt, str(err)))
+            attempt += 1
+            time.sleep(2)
+            if attempt == 3:
+                print('Failed to Log into eRA Commons, no data collected.')
+                return
+            
+    if config.rc_token is not None and config.rc_uri is not None:
+        # get the full pmid list from the REDCap project
+        project = Project(config.rc_uri, config.rc_token)
+        pubs_frame = pd.DataFrame(project.export_records(fields=['pmid', 'pmc_id', 'pub_date'], format='json'))
+
+    # get list of publications with during current grant cycle with no pmcid to check on
+    # nihms status
+    pubs_frame['pub_date'] = pd.to_datetime(pubs_frame['pub_date'], format='%Y-%m-%d')
+
+    #!!!!!!! how much of the pubmed results are going to pmc to check for compliance
+    if timeframe == 'all':
+        status_pmc = list(pubs_frame.pmid[pubs_frame.pmc_id == ''])
+    else:
+        status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) & (pubs_frame.pmc_id == '')])
+        #status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) | (pubs_frame.pmc_id == '')])
+    
+    ####################### scrape pmc information in batches
+    pmc_rows = []
+    batch_size = 250
+    count = len(status_pmc)
+
+    for start in range(0, count, batch_size):
+        end = min(count, start+batch_size)
+        # reload my bib, clear all publications and load pmids in status_pmc
+        print('Starting new batch: ' + str(start) + '-' + str(end) + ', Currently have gathered ' + str(len(pmc_rows)) +' rows.')
+        driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
+        time.sleep(long_delay)
+        clear_my_bib(driver, delay, logger)
+        print('*Cleared MyBib')
+        time.sleep(long_delay)
+        add_to_my_bib(driver, status_pmc[start:end], delay, long_delay, logger)
+        print('**Added ' + str(end-start) + ' pubs to MyBib: ' + str(start) + '-' + str(end) + ' pmids ' + str(status_pmc[start]) + '-' + str(status_pmc[end-1]))
+
+        # reload my bib and begin scraping each page of citations
+        time.sleep(long_delay)
+        driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
+        time.sleep(long_delay)
+
+        scrape_more = True
+        #### loop for each 'next page' click
+        while scrape_more == True:
+            soup = BeautifulSoup(driver.page_source, 'lxml')
+            cites = soup.find_all('div', 'citation-wrap')
+            print('**!Gonna scrape ' + str(len(cites)) + ' citations now.')
+            for x in range(len(cites)):
+                pmc_rows.append(scrape_citations(cites[x], x, variations, driver, delay, long_delay, logger))
+            print('**!!Finished a page of scraping citations... got ' + str(len(pmc_rows)) + ' rows.')
+            ## check if there's another page of citations to scrape
+            time.sleep(delay)
+            try:
+                next_button = driver.find_element_by_xpath('//*[@id="pager1"]/ul/li[4]/a').get_attribute('onclick')
+            except Exception as err:
+                next_button = 'return false;'
+            if next_button == 'return false;' or driver.find_element_by_xpath('//*[@id="pager2"]/ul/li/span').get_attribute('innerText') == '1':
+                scrape_more = False
+                print('**!!looks like no next button on publication number:' + str(end) + ' with ' + str(len(pmc_rows)) + ' rows and last pmid logged is ' + str(pmc_rows[-1:]))
+            else: driver.find_element_by_xpath('//*[@id="pager1"]/ul/li[4]/a').click()
+        #if count > 1000:
+        time.sleep(15)
+        print('***Completed ' + str(start) + ' : ' + str(end) + '    minutes-{0:0.1f}' .format((time.time()-start_time)/60))
+        #time.sleep(delay)
+    driver.close()
+
+    print('All done with scraping.  Got ' + str(len(pmc_rows)) + ' rows and expected ' + str(len(status_pmc)) + ' rows.')
+
+    ## package the pmc_rows into a data frame
+    pmc_frame = pd.DataFrame(pmc_rows, columns=['pmid', 'pmc_status', 'pmc_tags', 'all_awards'])
+
+    # change blank values to nan- makes column merging easier
+    #pmc_frame[pmc_frame == ''] = np.nan
+    
+    pmc_frame['pmc_updated'] = [datetime.today().strftime("%Y-%m-%d")]*len(pmc_frame['pmid'])
+    
+    # write a copy to a .csv file
+    pmc_frame.to_csv('dev-pmc_query_output.csv', index=False)
+    
+    ### Update REDCap project if one is being used to track publications
+    if config.rc_token is not None and config.rc_uri is not None:
+        success = project.import_records(pmc_frame)
+        
+    return
+    ###################### END PMC Section
+
+
+def query_nihms(logger, timeframe, delay, long_delay):
+    if config.rc_token is not None and config.rc_uri is not None:
+        # get the full pmid list from the REDCap project
+        project = Project(config.rc_uri, config.rc_token)
+        pubs_frame = pd.DataFrame(project.export_records(fields=['pmid', 'pmc_id', 'pmc_status', 'pub_date'], format='json'))
+
+    # get list of publications with during current grant cycle with no pmcid to check on
+    # nihms status
+    pubs_frame['pub_date'] = pd.to_datetime(pubs_frame['pub_date'], format='%Y-%m-%d')
+
+    # get list of publications with non-compliant pmc status to check on
+    # nihms status
+    pubs_frame = pubs_frame[pubs_frame['pmc_status'].isin(['2', '3', '4', ''])]     
+    
+    #!!!!!!! how much of the pubmed results are going to pmc to check for compliance
+    if timeframe == 'all':
+        pmids = list(pubs_frame.pmid[pubs_frame.pmc_id == ''])
+    else:
+        pmids = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) & (pubs_frame.pmc_id == '')])
+
+    print('Beginning NIHMS data query for %i publications' % (len(pmids)))
+    nihms_frame = get_nihms(pmids, config.ncbi_login, config.ncbi_pass, 1, 5)
+
+    nihms_frame['nihms_updated'] = [datetime.today().strftime("%Y-%m-%d")]*len(nihms_frame['pmid'])
+    
+    # write a copy to a .csv file
+    nihms_frame.to_csv('dev-nihms_query_output.csv', index=False)
+    
+    nihms_frame['nihms_comm'] = ''
+    
+    ### Update REDCap project if one is being used to track publications
+    if config.rc_token is not None and config.rc_uri is not None:
+        nihms_frame = RC_update_status(nihms_frame)
+        success = project.import_records(nihms_frame)
+    return
+
+
+def query_icite(logger, timeframe):
+    if config.rc_token is not None and config.rc_uri is not None:
+        # get the full pmid list from the REDCap project
+        project = Project(config.rc_uri, config.rc_token)
+        pubs_frame = pd.DataFrame(project.export_records(fields=['pmid', 'pub_date'], format='json'))
+
+    # get list of publications with during current grant cycle with no pmcid to check on
+    # nihms status
+    pubs_frame['pub_date'] = pd.to_datetime(pubs_frame['pub_date'], format='%Y-%m-%d')
+    
+    #!!!!!!! all or only current cycle publications are being queried?
+    if timeframe == 'all':
+        pmids = list(pubs_frame['pmid'])
+    else:
+        pmids = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe)])
+    
+    icite_df = icite(pmids)
+    icite_df.columns = ['pmid', 'icite_year', 'icite_title', 'icite_authors',
+                                'icite_journal', 'icite_is_research_article',
+                                'icite_relative_citation_ratio',
+                                'icite_nih_percentile', 'icite_human',
+                                'icite_animal', 'icite_molecular_cellular',
+                                'icite_apt', 'icite_is_clinical',
+                                'icite_citation_count', 'icite_citations_per_year',
+                                'icite_expected_citations_per_year',
+                                'icite_field_citation_rate', 'icite_provisional',
+                                'icite_x_coord', 'icite_y_coord',
+                                'icite_cited_by_clin', 'icite_cited_by',
+                                'icite_references', 'icite_doi',
+                                'icite_last_import_date',
+                                'icite_cited_by_clin_count']
+    
+    # write a copy to a .csv file
+    icite_df.to_csv('dev-icite_query_output.csv', index=False)
+    
+    ### Update REDCap project if one is being used to track publications
+    if config.rc_token is not None and config.rc_uri is not None:
+        success = project.import_records(icite_df)
+        
+    return
+
+
+def query_altmetric(logger, timeframe):
+    if config.rc_token is not None and config.rc_uri is not None:
+        # get the full pmid list from the REDCap project
+        project = Project(config.rc_uri, config.rc_token)
+        pubs_frame = pd.DataFrame(project.export_records(fields=['pmid', 'pub_date'], format='json'))
+
+    # get list of publications with during current grant cycle with no pmcid to check on
+    # nihms status
+    pubs_frame['pub_date'] = pd.to_datetime(pubs_frame['pub_date'], format='%Y-%m-%d')
+
+    #!!!!!!! all or only current cycle publications are being queried?
+    if timeframe != 'all':
+        pubs_frame = pubs_frame[(pubs_frame.pub_date >= timeframe)]
+    
+    ##Dev Check!!
+    print("Im going to check Altmetric.com for %i publications"% len(pubs_frame['pmid']))
+    #Dev Check!!
+    
+    altmetric_df = altmetric(pubs_frame['pmid'])
+    altmetric_df.columns = ['altmetric_title', 'altmetric_doi', 'altmetric_pmid',
+            'altmetric_pmc', 'altmetric_ads_id', 'altmetric_isbns',
+            'altmetric_jid', 'altmetric_issns', 'altmetric_journal',
+            'altmetric_cohorts', 'altmetric_abstract', 'altmetric_context',
+            'altmetric_authors', 'altmetric_type', 'altmetric_handles',
+            'altmetric_altmetric_id', 'altmetric_schema', 'altmetric_is_oa',
+            'altmetric_cited_by_posts_count', 'altmetric_cited_by_tweeters_count',
+            'altmetric_cited_by_accounts_count', 'altmetric_last_updated',
+            'altmetric_score', 'altmetric_history', 'altmetric_url',
+            'altmetric_added_on', 'altmetric_published_on', 'altmetric_subjects',
+            'altmetric_readers', 'altmetric_readers_count', 'altmetric_images',
+            'altmetric_details_url', 'altmetric_uri',
+            'altmetric_publisher_subjects', 'altmetric_cited_by_policies_count',
+            'altmetric_scopus_subjects', 'altmetric_cited_by_msm_count',
+            'altmetric_cited_by_fbwalls_count', 'altmetric_abstract_source',
+            'altmetric_cited_by_patents_count',
+            'altmetric_cited_by_wikipedia_count', 'altmetric_downloads',
+            'altmetric_cited_by_weibo_count', 'altmetric_cited_by_feeds_count',
+            'altmetric_cited_by_peer_review_sites_count',
+            'altmetric_cited_by_rdts_count', 'altmetric_cited_by_videos_count',
+            'altmetric_cited_by_gplus_count', 'altmetric_cited_by_rh_count',
+            'altmetric_handle', 'altmetric_ordinal_number',
+            'altmetric_cited_by_linkedin_count', 'altmetric_cited_by_pinners_count',
+            'altmetric_arxiv_id', 'altmetric_cited_by_qna_count',
+            'altmetric_attribution', 'altmetric_editors',
+            'altmetric_last_import_date']
+    altmetric_df['pmid'] = altmetric_df['altmetric_pmid']
+    
+    # write a copy to a .csv file
+    altmetric_df.to_csv('dev-altmetric_query_output.csv', index=False)
+    
+    ### Update REDCap project if one is being used to track publications
+    if config.rc_token is not None and config.rc_uri is not None:
+        success = project.import_records(altmetric_df)
+        
+    return

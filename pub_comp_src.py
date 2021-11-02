@@ -172,10 +172,6 @@ for start in range(0, count, batch_size):
     time.sleep(long_delay)
     pub_comp_lib.add_to_my_bib(driver, status_pmc[start:end], delay, long_delay, logger)
     print('**Added ' + str(end-start) + ' pubs to MyBib: ' + str(start) + '-' + str(end) + ' pmids ' + str(status_pmc[start]) + '-' + str(status_pmc[end-1]))
-    #print("Start: " + str(start))
-    #print("End: " + str(end))
-    #print("First PMID: " + status_pmc[0])
-    #print("Pubs_Frame PMID: " + pubs_frame.pmid[1])
 
     # reload my bib and begin scraping each page of citations
     time.sleep(long_delay)
