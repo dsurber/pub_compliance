@@ -6,6 +6,7 @@ from datetime import datetime
 import time
 import logging
 import pandas as pd
+import numpy as np
 import time
 from bs4 import BeautifulSoup
 import unicodedata
@@ -1054,7 +1055,7 @@ def check_argv(argv, config_start):
     return [db, timeframe]
 
 
-def query_pubmed(logger, variations, ncbi_api, rc_token = 'None', rc_uri = 'None'):
+def query_pubmed(logger, variations, ncbi_api, rc_uri = 'None', rc_token = 'None'):
     ### Get pmids from pubmed for all grant variations
     # create variables for pubmed queries
     Entrez.email = "Your.Name.Here@example.org"
