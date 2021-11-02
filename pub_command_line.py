@@ -77,7 +77,8 @@ if 'pmc' in db:
 if 'nihms' in db:
     nihms_start = time.time()
     print('NIHMS started at '+ str(datetime.now()))
-    pub_comp_lib.query_nihms(logger, timeframe, delay, long_delay)
+    pub_comp_lib.query_nihms(logger, timeframe, delay, long_delay, config.ncbi_login, 
+    						config.ncbi_pass, config.rc_uri, config.rc_token)
     print('NIHMS query complete in {0:0.1f} minutes' .format((time.time()-nihms_start)/60))
     
 if 'icite' in db:

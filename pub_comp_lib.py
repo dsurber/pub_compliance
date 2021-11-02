@@ -1238,10 +1238,10 @@ def query_pmc(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi
     ###################### END PMC Section
 
 
-def query_nihms(logger, timeframe, delay, long_delay):
-    if config.rc_token is not None and config.rc_uri is not None:
+def query_nihms(logger, timeframe, delay, long_delay, ncbi_creds, ncbi_pass, rc_uri, rc_token):
+    if rc_token is not None and rc_uri is not None:
         # get the full pmid list from the REDCap project
-        project = Project(config.rc_uri, config.rc_token)
+        project = Project(rc_uri, rc_token)
         pubs_frame = pd.DataFrame(project.export_records(fields=['pmid', 'pmc_id', 'pmc_status', 'pub_date'], format='json'))
 
     # get list of publications with during current grant cycle with no pmcid to check on
@@ -1259,7 +1259,7 @@ def query_nihms(logger, timeframe, delay, long_delay):
         pmids = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) & (pubs_frame.pmc_id == '')])
 
     print('Beginning NIHMS data query for %i publications' % (len(pmids)))
-    nihms_frame = get_nihms(pmids, config.ncbi_login, config.ncbi_pass, 1, 5)
+    nihms_frame = get_nihms(pmids, ncbi_creds, ncbi_pass, 1, 5)
 
     nihms_frame['nihms_updated'] = [datetime.today().strftime("%Y-%m-%d")]*len(nihms_frame['pmid'])
     
@@ -1269,7 +1269,7 @@ def query_nihms(logger, timeframe, delay, long_delay):
     nihms_frame['nihms_comm'] = ''
     
     ### Update REDCap project if one is being used to track publications
-    if config.rc_token is not None and config.rc_uri is not None:
+    if rc_token is not None and rc_uri is not None:
         nihms_frame = RC_update_status(nihms_frame)
         success = project.import_records(nihms_frame)
     return
