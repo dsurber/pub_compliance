@@ -1132,17 +1132,19 @@ def query_pubmed(logger, variations, ncbi_api, rc_uri = 'None', rc_token = 'None
 
     # check for method a journals
     pubs_frame = method_a_journal(pubs_frame)
-    
+
     #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     pubs_frame = pubs_frame.rename(columns={'pmcid':'pmc_id', 'nihmsid':'nihms_id'})
-    
+
+    pubs_frame['py_queried'] = [datetime.today().strftime("%Y-%m-%d")]*len(pubs_frame['pmid'])
+
     # write a copy to a .csv file
     pubs_frame.to_csv('dev-pubmed_query_output.csv', index=False)
-    
+
     ### Update REDCap project if one is being used to track publications
     if rc_token is not None and rc_uri is not None:
         success = project.import_records(pubs_frame)
-        
+
     return
     ###################### END PubMed Summary Section
 
@@ -1161,7 +1163,7 @@ def query_pmc(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi
             if attempt == 3:
                 print('Failed to Log into eRA Commons, no data collected.')
                 return
-            
+
     if rc_token is not None and rc_uri is not None:
         # get the full pmid list from the REDCap project
         project = Project(rc_uri, rc_token)
@@ -1265,10 +1267,10 @@ def query_nihms(logger, timeframe, delay, long_delay, ncbi_creds, ncbi_pass, rc_
         pmids = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) & (pubs_frame.pmc_id == '')])
 
     print('Beginning NIHMS data query for %i publications' % (len(pmids)))
-    nihms_frame = get_nihms(logger, pmids, ncbi_creds, ncbi_pass, 1, 5)
+    nihms_frame = get_nihms(logger, pmids, ncbi_creds, ncbi_pass, delay, long_delay)
 
-    nihms_frame['nihms_updated'] = nihms_frame[datetime.today().strftime("%Y-%m-%d")]*len(nihms_frame['pmid'])
-    
+    nihms_frame['nihms_updated'] = [datetime.today().strftime("%Y-%m-%d")]*len(nihms_frame['pmid'])
+
     # write a copy to a .csv file
     nihms_frame.to_csv('dev-nihms_query_output.csv', index=False)
     
