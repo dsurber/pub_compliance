@@ -666,7 +666,7 @@ def scrape_nihms_status(driver, nihms, pmid, delay, long_delay):
     return row
 
 
-def get_nihms(pmids, login, password, delay, long_delay):
+def get_nihms(logger, pmids, login, password, delay, long_delay):
     rows = []
 
 
@@ -1259,7 +1259,7 @@ def query_nihms(logger, timeframe, delay, long_delay, ncbi_creds, ncbi_pass, rc_
         pmids = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) & (pubs_frame.pmc_id == '')])
 
     print('Beginning NIHMS data query for %i publications' % (len(pmids)))
-    nihms_frame = get_nihms(pmids, ncbi_creds, ncbi_pass, 1, 5)
+    nihms_frame = get_nihms(logger, pmids, ncbi_creds, ncbi_pass, 1, 5)
 
     nihms_frame['nihms_updated'] = [datetime.today().strftime("%Y-%m-%d")]*len(nihms_frame['pmid'])
     
