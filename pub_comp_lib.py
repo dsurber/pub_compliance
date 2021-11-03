@@ -360,9 +360,12 @@ def clear_text(element):
 def ncbi_login(login, password):
     # set chrome driver options to headless
     options = Options()
+    user_agent = 'Mozilla/5.0 CK={} (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko'
+    options.add_argument("user-agent="+user_agent)
+    options.add_argument("--start-maximized")
     options.headless = True
     driver = webdriver.Chrome(options = options)
-    driver.set_window_size(1440, 900)
+    #driver.set_window_size(1440, 900)
     driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
     ## OR: https://www.ncbi.nlm.nih.gov/account/
     driver.switch_to.frame(driver.find_element_by_id('loginframe'))
@@ -376,9 +379,12 @@ def ncbi_login(login, password):
 def nihms_login(login, password):
     # set chrome driver options to headless
     options = Options()
+    user_agent = 'Mozilla/5.0 CK={} (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko'
+    options.add_argument("user-agent="+user_agent)
+    options.add_argument("--start-maximized")
     options.headless = True
     driver = webdriver.Chrome(options = options)
-    driver.set_window_size(1440, 900)
+    #driver.set_window_size(1440, 900)
     driver.get('https://www.nihms.nih.gov/login/?next=/submission/')
     time.sleep(3)
     driver.find_element_by_link_text('eRA Commons').click()
@@ -1261,7 +1267,7 @@ def query_nihms(logger, timeframe, delay, long_delay, ncbi_creds, ncbi_pass, rc_
     print('Beginning NIHMS data query for %i publications' % (len(pmids)))
     nihms_frame = get_nihms(logger, pmids, ncbi_creds, ncbi_pass, 1, 5)
 
-    nihms_frame['nihms_updated'] = [datetime.today().strftime("%Y-%m-%d")]*len(nihms_frame['pmid'])
+    nihms_frame['nihms_updated'] = nihms_frame[datetime.today().strftime("%Y-%m-%d")]*len(nihms_frame['pmid'])
     
     # write a copy to a .csv file
     nihms_frame.to_csv('dev-nihms_query_output.csv', index=False)
