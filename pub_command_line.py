@@ -92,5 +92,12 @@ if 'altmetric' in db:
     print('Altmetric started at '+ str(datetime.now()))
     pub_comp_lib.query_altmetric(logger, timeframe, config.rc_uri, config.rc_token)
     print('Altmetric query complete in {0:0.1f} minutes' .format((time.time()-altmetric_start)/60))
+
+if len(sys.argv) == 2 & sys.argv[1]=='compliance':
+	load_compliance_start = time.time()
+	print('Loading non-compliant publications started at '+ str(datetime.now()))
+	pub_comp_lib.pmc_add_non_compliant(logger, timeframe, variations, delay, long_delay, config.ncbi_login, 
+    						config.ncbi_pass, config.rc_uri, config.rc_token)
+	print('Loading non-compliant publications complete in {0:0.1f} minutes' .format((time.time()-load_compliance_start)/60))
     
 print('All queries complete in {0:0.1f} minutes' .format((time.time()-start_time)/60))

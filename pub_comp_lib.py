@@ -1041,21 +1041,25 @@ def check_argv(argv, config_start):
     timeframe = 'all'
     
     argv_count = len(argv)
-    db_array = ['all', 'pubmed', 'pmc', 'nihms', 'icite', 'altmetric']
-    timeframe_array = ['all', 'current']
+    db_array = ['all', 'compliance', 'pubmed', 'pmc', 'nihms', 'icite', 'altmetric']
+    timeframe_array = ['all', 'refresh', 'current']
     
     if argv_count == 1:
-        db = db_array[1:]
+        db = db_array[2:]
         timeframe = 'all'
     elif argv_count == 2 and argv[1] in db_array:
         db = argv[1]
         if db == 'all':
-            db = db_array[1:]
+            db = db_array[2:]
+        elif db == 'compliance':
+            db = db_array[2:4]
         timeframe = 'all'
     elif argv_count == 3 and argv[1] in db_array and argv[2] in timeframe_array:
         db = argv[1]
         if db == 'all':
-            db = db_array[1:]
+            db = db_array[2:]
+        elif db == 'compliance':
+            db = db_array[2:4]
         timeframe = argv[2]
         if timeframe == 'current':
             timeframe = datetime.strptime(config_start, '%m/%d/%Y')
@@ -1180,6 +1184,8 @@ def query_pmc(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi
     #!!!!!!! how much of the pubmed results are going to pmc to check for compliance
     if timeframe == 'all':
         status_pmc = list(pubs_frame.pmid[pubs_frame.pmc_id == ''])
+    elif timeframe == 'refresh'
+        status_pmc = list(pubs_frame.pmid)
     else:
         status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) & (pubs_frame.pmc_id == '')])
         #status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) | (pubs_frame.pmc_id == '')])
@@ -1249,6 +1255,54 @@ def query_pmc(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi
     return
     ###################### END PMC Section
 
+def pmc_add_non_compliant(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi_pass, rc_uri, rc_token):
+    # log into era commons
+    attempt = 1
+    while attempt < 4:
+        try:
+            driver = ncbi_login(ncbi_creds, ncbi_pass)
+            attempt = 4
+        except Exception as err:
+            logger.warning('Unable to log into ERA Commons, attempt %i; error: %s' % (attempt, str(err)))
+            attempt += 1
+            time.sleep(2)
+            if attempt == 3:
+                print('Failed to Log into eRA Commons, no data collected.')
+                return
+
+    if rc_token is not None and rc_uri is not None:
+        # get the full pmid list from the REDCap project
+        project = Project(rc_uri, rc_token)
+        pubs_frame = pd.DataFrame(project.export_records(fields=['pmid', 'pmc_id', 'pub_date'], format='json'))
+
+    # get list of publications with during current grant cycle with no pmcid to check on
+    # nihms status
+    pubs_frame['pub_date'] = pd.to_datetime(pubs_frame['pub_date'], format='%Y-%m-%d')
+
+    #!!!!!!! how much of the pubmed results are going to pmc to check for compliance
+    if timeframe == 'all':
+        status_pmc = list(pubs_frame.pmid[pubs_frame.pmc_id == ''])
+    elif timeframe == 'refresh'
+        status_pmc = list(pubs_frame.pmid)
+    else:
+        status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) & (pubs_frame.pmc_id == '')])
+        #status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) | (pubs_frame.pmc_id == '')])
+    
+    ####################### scrape pmc information in batches
+    pmc_rows = []
+    batch_size = 250
+    count = len(status_pmc)
+
+    for start in range(0, count, batch_size):
+        end = min(count, start+batch_size)
+        # reload my bib, clear all publications and load pmids in status_pmc
+        print('Starting new batch: ' + str(start) + '-' + str(end) + ', Currently have gathered ' + str(len(pmc_rows)) +' rows.')
+        driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
+        time.sleep(long_delay)
+        add_to_my_bib(driver, status_pmc[start:end], delay, long_delay, logger)
+        print('**Added ' + str(end-start) + ' pubs to MyBib: ' + str(start) + '-' + str(end) + ' pmids ' + str(status_pmc[start]) + '-' + str(status_pmc[end-1]))
+    return
+
 
 def query_nihms(logger, timeframe, delay, long_delay, ncbi_creds, ncbi_pass, rc_uri, rc_token):
     if rc_token is not None and rc_uri is not None:
@@ -1267,6 +1321,8 @@ def query_nihms(logger, timeframe, delay, long_delay, ncbi_creds, ncbi_pass, rc_
     #!!!!!!! how much of the pubmed results are going to pmc to check for compliance
     if timeframe == 'all':
         pmids = list(pubs_frame.pmid[pubs_frame.pmc_id == ''])
+    elif timeframe == 'refresh'
+        pmids = list(pubs_frame.pmid)
     else:
         pmids = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) & (pubs_frame.pmc_id == '')])
 
