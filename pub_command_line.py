@@ -93,7 +93,7 @@ if 'altmetric' in db:
     pub_comp_lib.query_altmetric(logger, timeframe, config.rc_uri, config.rc_token)
     print('Altmetric query complete in {0:0.1f} minutes' .format((time.time()-altmetric_start)/60))
 
-if len(sys.argv) == 2 & sys.argv[1]=='compliance':
+if len(sys.argv) >= 2 and sys.argv[1] == 'compliance':
 	load_compliance_start = time.time()
 	print('Loading non-compliant publications started at '+ str(datetime.now()))
 	pub_comp_lib.pmc_add_non_compliant(logger, timeframe, variations, delay, long_delay, config.ncbi_login, 

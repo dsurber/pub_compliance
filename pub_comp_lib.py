@@ -1052,14 +1052,14 @@ def check_argv(argv, config_start):
         if db == 'all':
             db = db_array[2:]
         elif db == 'compliance':
-            db = db_array[2:4]
+            db = db_array[2:5]
         timeframe = 'all'
     elif argv_count == 3 and argv[1] in db_array and argv[2] in timeframe_array:
         db = argv[1]
         if db == 'all':
             db = db_array[2:]
         elif db == 'compliance':
-            db = db_array[2:4]
+            db = db_array[2:5]
         timeframe = argv[2]
         if timeframe == 'current':
             timeframe = datetime.strptime(config_start, '%m/%d/%Y')
@@ -1184,7 +1184,7 @@ def query_pmc(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi
     #!!!!!!! how much of the pubmed results are going to pmc to check for compliance
     if timeframe == 'all':
         status_pmc = list(pubs_frame.pmid[pubs_frame.pmc_id == ''])
-    elif timeframe == 'refresh'
+    elif timeframe == 'refresh':
         status_pmc = list(pubs_frame.pmid)
     else:
         status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) & (pubs_frame.pmc_id == '')])
@@ -1282,7 +1282,7 @@ def pmc_add_non_compliant(logger, timeframe, variations, delay, long_delay, ncbi
     #!!!!!!! how much of the pubmed results are going to pmc to check for compliance
     if timeframe == 'all':
         status_pmc = list(pubs_frame.pmid[pubs_frame.pmc_id == ''])
-    elif timeframe == 'refresh'
+    elif timeframe == 'refresh':
         status_pmc = list(pubs_frame.pmid)
     else:
         status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) & (pubs_frame.pmc_id == '')])
@@ -1321,7 +1321,7 @@ def query_nihms(logger, timeframe, delay, long_delay, ncbi_creds, ncbi_pass, rc_
     #!!!!!!! how much of the pubmed results are going to pmc to check for compliance
     if timeframe == 'all':
         pmids = list(pubs_frame.pmid[pubs_frame.pmc_id == ''])
-    elif timeframe == 'refresh'
+    elif timeframe == 'refresh':
         pmids = list(pubs_frame.pmid)
     else:
         pmids = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) & (pubs_frame.pmc_id == '')])
