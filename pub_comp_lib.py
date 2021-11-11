@@ -363,6 +363,8 @@ def ncbi_login(login, password):
     user_agent = 'Mozilla/5.0 CK={} (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko'
     options.add_argument("user-agent="+user_agent)
     options.add_argument("--start-maximized")
+    # disable logging flags that Chrome raises to the cmd window
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
     options.headless = True
     driver = webdriver.Chrome(options = options)
     #driver.set_window_size(1440, 900)
@@ -383,6 +385,8 @@ def nihms_login(login, password):
     options.add_argument("user-agent="+user_agent)
     options.add_argument("--start-maximized")
     options.headless = True
+    # disable logging flags that Chrome raises to the cmd window
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
     driver = webdriver.Chrome(options = options)
     #driver.set_window_size(1440, 900)
     driver.get('https://www.nihms.nih.gov/login/?next=/submission/')
