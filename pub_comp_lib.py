@@ -548,7 +548,9 @@ def scrape_citations(cite, count, grants, driver, delay, long_delay, logger):
         status = '3'
     cite_award = re.search('<a class=\\"([\S\s]*)\\" href', str(cite)).group(1)
     all_awards = []
+    all_awards_tag_text = []
     pmc_tag = []
+    pmc_tag_text = []
         # if len(re.search('(view8-awards open-award-dialog)', str(awards[x])).group(1))==30:
     if 'view8-awards open-award-dialog' in str(cite_award):
         place = count+1
@@ -576,22 +578,30 @@ def scrape_citations(cite, count, grants, driver, delay, long_delay, logger):
         # extract the text of the award dialog box
         grant_dialog = driver.find_element_by_xpath('//*[@id="grant-dialog"]').get_attribute('outerHTML')
         all_awards = re.findall('<div class="checked read-only.*?<p>(.*?) -', grant_dialog)
+        all_awards_tag_text = re.findall('title="([A-Z].*?\\.)', grant_dialog)
         # Development check for loading time of awards info!!!!!!!!!!!!
         if len(all_awards) == 0:
             print('--May need to wait longer for awards to load, got 0 for pmid: ' + pmid)
             time.sleep(load_awards_delay)
             grant_dialog = driver.find_element_by_xpath('//*[@id="grant-dialog"]').get_attribute('outerHTML')
             all_awards = re.findall('<div class="checked read-only.*?<p>(.*?) -', grant_dialog)
+            all_awards_tag_text = re.findall('title="([A-Z].*?\\.)', grant_dialog)
             if len(all_awards) == 0:
                 print('---Well maybe there are no awards for pmid: ' + pmid)
             else:
                 print('---I waited longer and got them when I tried again.')
         # not sure about the 'in grants' portion below to only list pmc tagged
         # grants that are in the list provided by the user
+        count = 0
         for award in all_awards:
             if award in grants:
                 pmc_tag.append(award)
+                if 'NIHMS' in all_awards_tag_text[count] or 'RPPR' in all_awards_tag_text[count]:
+                    pmc_tag_text.append(all_awards_tag_text[count])
+                else: pmc_tag_text.append('')
+            count += 1
         pmc_tag = ', '.join(pmc_tag)
+        pmc_tag_text = ', '.join(pmc_tag_text)
         time.sleep(delay)
         # closes the grant dialog box
         last_try = 'no'
@@ -620,7 +630,7 @@ def scrape_citations(cite, count, grants, driver, delay, long_delay, logger):
 
     # assemble the pmid, status, and pmc_tag values into rows of a table
     #row = [pmid, status, pmc_tag, all_awards, (int(count))]
-    row = [pmid, status, pmc_tag, all_awards]
+    row = [pmid, status, pmc_tag, pmc_tag_text, all_awards]
     return row
 
 
@@ -1238,7 +1248,7 @@ def query_pmc(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi
     print('All done with scraping.  Got ' + str(len(pmc_rows)) + ' rows and expected ' + str(len(status_pmc)) + ' rows.')
 
     ## package the pmc_rows into a data frame
-    pmc_frame = pd.DataFrame(pmc_rows, columns=['pmid', 'pmc_status', 'pmc_tags', 'all_awards'])
+    pmc_frame = pd.DataFrame(pmc_rows, columns=['pmid', 'pmc_status', 'pmc_tags', 'pmc_tag_text', 'all_awards'])
 
     # change blank values to nan- makes column merging easier
     #pmc_frame[pmc_frame == ''] = np.nan
