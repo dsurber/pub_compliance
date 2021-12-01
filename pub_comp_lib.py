@@ -228,6 +228,8 @@ def details(pub, variations):
             pub_types.append(re.search('\\">(.*?)</PublicationType>', type_list[x]).group(1))
             if re.search('\\">(.*?)</PublicationType>', type_list[x]).group(1).lower() in ['letter', 'comment', 'editorial']:
                 exclude = '1'
+            if re.search('\\">(.*?)</PublicationType>', type_list[x]).group(1).lower() in ['research support']:
+                exclude = '0'
     pub_type_list = ', '.join(pub_types)
 
     ## get mesh heading major and minor topics with qualifiers
@@ -688,6 +690,7 @@ def scrape_nihms_status(driver, nihms, pmid, delay, long_delay):
 
 def get_nihms(logger, pmids, login, password, delay, long_delay):
     rows = []
+    driver = None
 
 
     attempt = 1
@@ -701,7 +704,7 @@ def get_nihms(logger, pmids, login, password, delay, long_delay):
             time.sleep(2)
             if attempt == 3:
                 print('Failed to Log into eRA Commons, no data collected.')
-                return
+                return driver
 
     # navigate to nihms
     driver.get('https://www.nihms.nih.gov/submission/')
@@ -758,9 +761,9 @@ def get_nihms(logger, pmids, login, password, delay, long_delay):
     driver.close()
 
     ## package the rows into a data frame
-    nihms_frame = pd.DataFrame(rows, columns= ['pmid', 'nihms_id', 'pmc_id', 'reviewer', 'files_uploaded', 'initial_approval', 'nihms_conversion', 'final_approval', 'pmcid_assigned'])
+    #nihms_frame = pd.DataFrame(rows, columns= ['pmid', 'nihms_id', 'pmc_id', 'reviewer', 'files_uploaded', 'initial_approval', 'nihms_conversion', 'final_approval', 'pmcid_assigned'])
 
-    return nihms_frame
+    return rows
 
 
 def icite(pmids):
@@ -1337,7 +1340,16 @@ def query_nihms(logger, timeframe, delay, long_delay, ncbi_creds, ncbi_pass, rc_
         pmids = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) & (pubs_frame.pmc_id == '')])
 
     print('Beginning NIHMS data query for %i publications' % (len(pmids)))
-    nihms_frame = get_nihms(logger, pmids, ncbi_creds, ncbi_pass, delay, long_delay)
+    nihms_check = get_nihms(logger, pmids, ncbi_creds, ncbi_pass, delay, long_delay)
+
+    if nihms_check == None:
+        return
+    else:
+        ## package the rows into a data frame
+        nihms_frame = pd.DataFrame(nihms_check, columns= ['pmid', 'nihms_id', 'pmc_id', 'reviewer', 
+                                                          'files_uploaded', 'initial_approval', 
+                                                          'nihms_conversion', 'final_approval', 
+                                                          'pmcid_assigned'])
 
     nihms_frame['nihms_updated'] = [datetime.today().strftime("%Y-%m-%d")]*len(nihms_frame['pmid'])
 
