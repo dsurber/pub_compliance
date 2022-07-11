@@ -11,8 +11,16 @@ import pub_comp_lib
 # database default is 'all', length check to throw error if more than two sent
 # time default is 'all', now uses config.start for current grant cycle
 # help shows the list of accepted args
-# database list: all, pubmed, pmc, nihms, icite, altmetric
-# time list: all, now
+# database list: all, compliance, pubmed, pmc, nihms, icite, altmetric
+#	*note that 'all' will query all databases and 'compliance' will not query 
+#	icite or altmetric for faster results to support compliance tracking
+# time list: all, refresh, current
+#	*note that 'all' will update all publications in pubmed and those in pmc 
+#	and nihms without a pmcid and no date constraints on the queries, 'refresh'
+#	will update all databases regardless of compliance/pmcid and no date constraints
+#	on the queries.  the longer processing time meant to refresh the current values
+#	for all fields and all publications in the tracking system.
+
 ###########
 
 ### Dev - Check the Params that are passed from the command line
@@ -30,7 +38,7 @@ import pub_comp_lib
 start_time = time.time()
 
 # set delay values for pausing during web scraping actions
-delay = 2
+delay = 5
 long_delay = 5
 
 # initiatlize logger

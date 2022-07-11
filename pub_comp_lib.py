@@ -20,6 +20,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from selenium.common.exceptions import WebDriverException
 
 def clean(grant):
 	#	remove all whitespace
@@ -358,35 +359,13 @@ def clear_text(element):
     length = len(element.get_attribute('value'))
     element.send_keys(length * Keys.BACKSPACE)
 
-
-def ncbi_login(login, password):
-    # set chrome driver options to headless
-    options = Options()
-    user_agent = 'Mozilla/5.0 CK={} (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko'
-    options.add_argument("user-agent="+user_agent)
-    options.add_argument("--start-maximized")
-    # disable logging flags that Chrome raises to the cmd window
-    options.add_experimental_option('excludeSwitches', ['enable-logging'])
-    options.headless = True
-    driver = webdriver.Chrome(options = options)
-    #driver.set_window_size(1440, 900)
-    driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
-    ## OR: https://www.ncbi.nlm.nih.gov/account/
-    driver.switch_to.frame(driver.find_element_by_id('loginframe'))
-    driver.find_element_by_id('era').click()
-    time.sleep(3)
-    driver.find_element_by_id('USER').send_keys(login)
-    driver.find_element_by_id('PASSWORD').send_keys(password)
-    driver.find_element_by_xpath('//*[@id="CredSelectorNotice"]/div/button').click()
-    return driver
-
 def nihms_login(login, password):
     # set chrome driver options to headless
     options = Options()
     user_agent = 'Mozilla/5.0 CK={} (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko'
     options.add_argument("user-agent="+user_agent)
     options.add_argument("--start-maximized")
-    options.headless = True
+    #options.headless = True
     # disable logging flags that Chrome raises to the cmd window
     options.add_experimental_option('excludeSwitches', ['enable-logging'])
     driver = webdriver.Chrome(options = options)
@@ -401,134 +380,153 @@ def nihms_login(login, password):
     return driver
 
 
+###!!! Updated with WebDriverWait !!!
+def ncbi_login(login, password):
+    # set chrome driver options to headless
+    options = Options()
+    user_agent = 'Mozilla/5.0 CK={} (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko'
+    options.add_argument("user-agent="+user_agent)
+    options.add_argument("--start-maximized")
+    # disable logging flags that Chrome raises to the cmd window
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    #options.headless = True
+    driver = webdriver.Chrome(options = options)
+    #driver.set_window_size(1440, 900)
+    driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
+    ## OR: https://www.ncbi.nlm.nih.gov/account/
+    driver.switch_to.frame(driver.find_element_by_id('loginframe'))
+    driver.find_element_by_id('era').click()
+    try:
+        element = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.XPATH, '//*[@id="CredSelectorNotice"]/div/button')))
+    except Exception as err:
+        print('Unexpected error on eRA Commons login-- timeout or new Xpath values: %s' %err)
+    driver.find_element_by_id('USER').send_keys(login)
+    driver.find_element_by_id('PASSWORD').send_keys(password)
+    driver.find_element_by_xpath('//*[@id="CredSelectorNotice"]/div/button').click()
+    return driver
+
+
 def clear_my_bib(driver, delay, logger):
     try:
         select_all = driver.find_element_by_xpath('//*[@id="selectbar"]/div[1]/ul/li[1]/a')
         driver.execute_script("arguments[0].click();", select_all)
         delete_all = driver.find_element_by_id('delete-citations')
         driver.execute_script("arguments[0].click();", delete_all)
-        time.sleep(delay)
-        #switch to pup up and click 'okay'
+        #time.sleep(delay)
+        
+        #switch to pop-up and click 'okay'
         driver.switch_to.alert.accept()
-        time.sleep(delay)
-        #click 'done' on new popup
-        driver.find_element_by_xpath('//*[@id="deleteCitations"]/button').click()
+        #click 'Done'
+        try:
+            done_button = WebDriverWait(driver, delay).until(
+                EC.presence_of_element_located((By.XPATH, '//*[@id="deleteCitations"]/button'))
+            )
+        except Exception as err:
+            print('Done button did not appear in time interval: %s' %err)
+            return
+        done_button.click()
+    
     except Exception as err:
         logger.warning('no citations to delete: %s' %err)
 
 
 def add_to_my_bib(driver, add_pubs, delay, long_delay, logger):
     # ## Open the 'Add Citations' window
-    attempt = 0
-    while attempt <= 5:
-        try:
-            add_citation = driver.find_element_by_xpath('//*[@id="add-drop"]/li[1]/a')
-            driver.execute_script("arguments[0].click();", add_citation)
-            attempt = 6
-        except Exception as err:
-            #print('unable to add citations: ', str(err))
-            if attempt == 4:
-                time.sleep(long_delay*4)
-                #print('I really tried to add citations...')
-            else:
-                time.sleep(delay)
-            attempt += 1
+    # Wait for page to load then open the 'Add Citations' window
+    try:
+        add_citation = WebDriverWait(driver, long_delay).until(
+                    EC.presence_of_element_located((By.XPATH, '//*[@id="add-drop"]/li[1]/a'))
+                )
+    #element_located_to_be_selected
+    #presence_of_element_located
+    except Exception as err:
+        logger.warning('add-citation button did not load in time: %s' %err)
+        print('unable to add citations, load time or page error: %s' %err)
+        #return
+
+    #add_citation = driver.find_element_by_xpath('//*[@id="add-drop"]/li[1]/a')
+    driver.execute_script("arguments[0].click();", add_citation)
 
     # ## Add citations and search
-    attempt = 0
-    while attempt <= 3:
-        try:
-            search_field = driver.find_element_by_xpath('//*[@id="term"]')
-            time.sleep(delay)
-            attempt = 4
-        except Exception as err:
-            time.sleep(delay)
-            attempt += 1
+    try:
+        search_field = WebDriverWait(driver, long_delay).until(
+            EC.visibility_of_element_located((By.XPATH,'//*[@id="term"]'))
+        )
+    except Exception as err:
+        print('Search bar for publications did not load in time: %s' %err) 
+    search_field.send_keys(', '.join(add_pubs))
 
-    attempt = 0
-    while attempt <= 3:
-        try:
-            search_field.send_keys(', '.join(add_pubs))
-            time.sleep(delay)
-            attempt = 4
-        except Exception as err:
-            time.sleep(delay)
-            attempt += 1
-
-    attempt = 0
-    while attempt <= 3:
-        try:
-            driver.find_element_by_xpath('//*[@id="search-but"]').click()
-            attempt = 4
-            time.sleep(delay)
-        except Exception as err:
-            time.sleep(delay)
-            attempt += 1
+    try:
+        search_button = WebDriverWait(driver, long_delay).until(
+            EC.visibility_of_element_located((By.XPATH,'//*[@id="search-but"]'))
+        )
+        search_button.click()
+    except Exception as err:
+        print('Search button did not load in time: %s' %err)
 
     next_button = True
     while next_button == True:
-        time.sleep(delay)
+        try:
+            next_button = WebDriverWait(driver, delay).until(
+                                    EC.visibility_of_element_located((By.XPATH,'//*[@id="nextpage"]'))
+                                )
+            next_button = next_button.is_displayed()
+        except Exception as err:
+            #print('No next button found, adding publications. %s' %err)
+            next_button = False
 
-        attempt = 0
-        while attempt <= 3:
-            try:
-                next_button = driver.find_element_by_xpath('//*[@id="nextpage"]').is_displayed()
-                attempt = 4
-            except Exception as err:
-                time.sleep(long_delay)
-                attempt += 1
+        try:
+            WebDriverWait(driver, delay).until(
+                        EC.visibility_of_element_located((By.CSS_SELECTOR, "#search-results input[type='checkbox']"))
+                    )
+        except Exception as err:
+            pass
 
-        # ## Select all publications, add, close 'Add Citations' window
         checkboxes = driver.find_elements_by_css_selector("#search-results input[type='checkbox']")
         for checkbox in checkboxes:
             driver.execute_script("arguments[0].click();", checkbox)
-        time.sleep(delay)
-        if next_button == False:
-            #time.sleep(long_delay)
-            #add_button = WebDriverWait(driver, long_delay).until(EC.presence_of_element_located((By.XPATH, '//*[@id="add"]')))
-            #print('i am trying to click ADD')
-            #add_button.submit()
-            attempt = 0
-            while attempt < 4:
-                try:
-                    driver.find_element_by_xpath('//*[@id="add"]').click()
-                    attempt = 4
-                except Exception as err:
-                    attempt += 1
-                    if attempt == 3:
-                        time.sleep(long_delay)
-                    else: time.sleep(delay)
-        else:
-            #print('still trying to click NEXT')
-            attempt = 0
-            while attempt < 4:
-                try:
-                    driver.find_element_by_xpath('//*[@id="nextpage"]').click()
-                    attempt = 4
-                except Exception as err:
-                    print('Failed to click next for some reason: %s', str(err))
-                    logger.warning('Failed to click next for some reason: %s' %err)
-                    attempt += 1
-                    if attempt == 3:
-                        time.sleep(long_delay)
-                        next_button = False
-                    else: time.sleep(delay)
 
-            time.sleep(long_delay)
-
-    attempt = 0
-    while attempt < 4:
         try:
-            driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
-            attempt = 4
+            driver.find_element_by_xpath('//*[@id="nextpage"]').click()
         except Exception as err:
-            time.sleep(long_delay)
-            attempt += 1
-            #driver.find_element_by_xpath('/html/body/div[6]/div[1]/button/span[1]').click()
-            if attempt == 3:
-                driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
-                time.sleep(long_delay)
+            #print('Failed to click next for some reason: %s', str(err))
+            pass
+        
+    if next_button == False:
+        try:
+            add_button = WebDriverWait(driver, long_delay).until(
+                EC.visibility_of_element_located((By.ID,'add'))
+                )
+            add_button.click()        
+        except Exception as err:
+            print('Failed to add publications. %s' %err)
+                
+        try:
+            add_success_msg = WebDriverWait(driver, long_delay).until(
+                EC.visibility_of_element_located((By.XPATH,'//*[@id="addblock"]/ul')))
+            print(driver.find_element_by_xpath('//*[@id="addblock"]/ul').get_attribute('innerText'))
+        except Exception as err:
+            print('Success message did not appear after clicking the add button. %s' %err)
 
+    try:
+        #WebDriverWait(driver, long_delay).until(
+        #                EC.visibility_of_element_located((By.XPATH, '/html/body/div[4]/div[1]/button/span[1]'))
+        #            )
+        driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
+        #driver.find_element_by_xpath('/html/body/div[5]/div[1]/button/span[1]').click()
+    except Exception as err:
+        print('Failed to close the search for publications box after adding. %s' %err)
+        driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
+
+    #try:
+        #driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
+        #driver.find_element_by_xpath('/html/body/div[5]/div[1]/button/span[1]').click()
+    #except Exception as err:
+        #print('Failed to close the search for publications box after adding. %s' %err)
+        #driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
+
+    ############ End new dev
 
 def scrape_citations(cite, count, grants, driver, delay, long_delay, logger):
     load_awards_delay = long_delay
@@ -569,14 +567,24 @@ def scrape_citations(cite, count, grants, driver, delay, long_delay, logger):
                 driver.find_element_by_xpath(awards_list).click()
                 attempt = 4
             except Exception as err:
-                if attempt == 2:
-                    time.sleep(long_delay)
-                    attempt += 1
-                    print('Might have failed to open awards list for pmid: ' + pmid)
-                else:
-                    time.sleep(delay)
-                    attempt += 1
-        time.sleep(load_awards_delay)
+                WebDriverWait(driver, long_delay).until(
+                            EC.visibility_of_element_located((By.XPATH, awards_list))
+                        )
+                attempt += 1
+                print('Might have failed to open awards list for pmid: ' + pmid)
+
+        #time.sleep(load_awards_delay)
+        try:
+            WebDriverWait(driver, long_delay).until(
+                    EC.visibility_of_element_located((By.ID,'atab-era'))
+                )
+            WebDriverWait(driver, long_delay).until(
+                    EC.invisibility_of_element_located((By.XPATH, '/html/body/div[5]/div[2]/div[1]/div[2]/div/div/div/i')))
+            time.sleep(1)
+        except Exception as err:
+            print('Wait for awards list to load did not work as planned.  Check line 176 in Scrape_Citations')
+        
+        
         # extract the text of the award dialog box
         grant_dialog = driver.find_element_by_xpath('//*[@id="grant-dialog"]').get_attribute('outerHTML')
         all_awards = re.findall('<div class="checked read-only.*?<p>(.*?) -', grant_dialog)
@@ -584,7 +592,7 @@ def scrape_citations(cite, count, grants, driver, delay, long_delay, logger):
         # Development check for loading time of awards info!!!!!!!!!!!!
         if len(all_awards) == 0:
             print('--May need to wait longer for awards to load, got 0 for pmid: ' + pmid)
-            time.sleep(load_awards_delay)
+            time.sleep(long_delay)
             grant_dialog = driver.find_element_by_xpath('//*[@id="grant-dialog"]').get_attribute('outerHTML')
             all_awards = re.findall('<div class="checked read-only.*?<p>(.*?) -', grant_dialog)
             all_awards_tag_text = re.findall('title="([A-Z].*?\\.)', grant_dialog)
@@ -713,8 +721,23 @@ def get_nihms(logger, pmids, login, password, delay, long_delay):
 
     # loop through pmids and get nihms status and progress details that are available
     for pmid in pmids:
+        
         search_url = 'https://www.nihms.nih.gov/submission/search/?q=' + pmid
-        driver.get(search_url)
+        
+        attempt = 0
+        while attempt < 4:
+            try:
+                driver.get(search_url)
+                attempt = 4
+            except WebDriverException as err:
+                if attempt < 3:
+                    print('*failed attempt to search pmid in NIHMS, page may be down')
+                    attempt += 1
+                    time.sleep(delay)
+                else:
+                    print('Failed to search pmid ' + str(pmid))
+                    html = ''
+                    attempt += 1
 
         # scrape the search results and see if there's a nihmsid for the pmid
         attempt = 0
@@ -1203,7 +1226,7 @@ def query_pmc(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi
         status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) & (pubs_frame.pmc_id == '')])
         #status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) | (pubs_frame.pmc_id == '')])
     
-    ####################### scrape pmc information in batches
+        ####################### scrape pmc information in batches
     pmc_rows = []
     batch_size = 250
     count = len(status_pmc)
@@ -1213,18 +1236,28 @@ def query_pmc(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi
         # reload my bib, clear all publications and load pmids in status_pmc
         print('Starting new batch: ' + str(start) + '-' + str(end) + ', Currently have gathered ' + str(len(pmc_rows)) +' rows.')
         driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
-        time.sleep(long_delay)
+        #time.sleep(long_delay)
+        ######## Wait until 'main_content' loads on webpage for refresh
+        WebDriverWait(driver, long_delay).until(
+                    EC.visibility_of_element_located((By.ID,'main_content'))
+                )
         clear_my_bib(driver, delay, logger)
         print('*Cleared MyBib')
-        time.sleep(long_delay)
+        #time.sleep(long_delay)
         add_to_my_bib(driver, status_pmc[start:end], delay, long_delay, logger)
         print('**Added ' + str(end-start) + ' pubs to MyBib: ' + str(start) + '-' + str(end) + ' pmids ' + str(status_pmc[start]) + '-' + str(status_pmc[end-1]))
 
         # reload my bib and begin scraping each page of citations
-        time.sleep(long_delay)
+        #time.sleep(long_delay)
         driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
-        time.sleep(long_delay)
-
+        #time.sleep(long_delay)
+        ######## Wait until 'main_content' loads on webpage for refresh
+        try:
+            WebDriverWait(driver, long_delay).until(
+                    EC.visibility_of_element_located((By.ID,'main_content'))
+                )
+        except Exception as err:
+            pass
         scrape_more = True
         #### loop for each 'next page' click
         while scrape_more == True:
@@ -1235,8 +1268,11 @@ def query_pmc(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi
                 pmc_rows.append(scrape_citations(cites[x], x, variations, driver, delay, long_delay, logger))
             print('**!!Finished a page of scraping citations... got ' + str(len(pmc_rows)) + ' rows.')
             ## check if there's another page of citations to scrape
-            time.sleep(delay)
+            #time.sleep(delay)
             try:
+                WebDriverWait(driver, long_delay).until(
+                            EC.presence_of_element_located((By.XPATH,'//*[@id="pager1"]/ul/li[4]/a'))
+                        )
                 next_button = driver.find_element_by_xpath('//*[@id="pager1"]/ul/li[4]/a').get_attribute('onclick')
             except Exception as err:
                 next_button = 'return false;'
@@ -1245,18 +1281,18 @@ def query_pmc(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi
                 print('**!!looks like no next button on publication number:' + str(end) + ' with ' + str(len(pmc_rows)) + ' rows and last pmid logged is ' + str(pmc_rows[-1:]))
             else: driver.find_element_by_xpath('//*[@id="pager1"]/ul/li[4]/a').click()
 
-        time.sleep(delay)
+        #time.sleep(delay)
     driver.close()
 
     print('All done with scraping.  Got ' + str(len(pmc_rows)) + ' rows and expected ' + str(len(status_pmc)) + ' rows.')
 
     ## package the pmc_rows into a data frame
     pmc_frame = pd.DataFrame(pmc_rows, columns=['pmid', 'pmc_status', 'pmc_tags', 'pmc_tag_text', 'all_awards'])
-
-    # change blank values to nan- makes column merging easier
-    #pmc_frame[pmc_frame == ''] = np.nan
     
     pmc_frame['pmc_updated'] = [datetime.today().strftime("%Y-%m-%d")]*len(pmc_frame['pmid'])
+    
+    #remove rows with duplicate pmids
+    pmc_frame = pmc_frame.drop_duplicates(subset='pmid', keep='first', inplace=False, ignore_index=False) 
     
     # write a copy to a .csv file
     pmc_frame.to_csv('dev-pmc_query_output.csv', index=False)
