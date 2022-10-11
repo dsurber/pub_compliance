@@ -359,21 +359,30 @@ def clear_text(element):
     length = len(element.get_attribute('value'))
     element.send_keys(length * Keys.BACKSPACE)
 
-def nihms_login(login, password):
+
+def ncbi_login(login, password, long_delay):
     # set chrome driver options to headless
     options = Options()
-    user_agent = 'Mozilla/5.0 CK={} (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko'
+    #user_agent = 'Mozilla/105.0 CK={} (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko'
+    user_agent = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:47.0) Gecko/20100101 Firefox/47.0'
     options.add_argument("user-agent="+user_agent)
     options.add_argument("--start-maximized")
-    #options.headless = True
     # disable logging flags that Chrome raises to the cmd window
     options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    #options.headless = True
     driver = webdriver.Chrome(options = options)
-    #driver.set_window_size(1440, 900)
-    driver.get('https://www.nihms.nih.gov/login/?next=/submission/')
-    time.sleep(3)
-    driver.find_element_by_link_text('eRA Commons').click()
-    time.sleep(3)
+    driver.set_window_size(1440, 900)
+    driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
+    try:
+        driver.find_element_by_class_name('federation-provider-button.era.usa-button').click()
+    except Exception as err:
+        try:
+            driver.find_element_by_class_name('federation-provider-button.usa-button').click()
+        except Exception as err:
+            print('Failed both methods of logn.  Check the class name of the eRA Login button.')
+    WebDriverWait(driver, long_delay).until(
+                    EC.element_to_be_clickable((By.XPATH,'//*[@id="CredSelectorNotice"]/div/button'))
+                )
     driver.find_element_by_id('USER').send_keys(login)
     driver.find_element_by_id('PASSWORD').send_keys(password)
     driver.find_element_by_xpath('//*[@id="CredSelectorNotice"]/div/button').click()
@@ -381,29 +390,52 @@ def nihms_login(login, password):
 
 
 ###!!! Updated with WebDriverWait !!!
-def ncbi_login(login, password):
+def nihms_login(login, password, long_delay):
     # set chrome driver options to headless
     options = Options()
-    user_agent = 'Mozilla/5.0 CK={} (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko'
+    #user_agent = 'Mozilla/105.0 CK={} (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko'
+    user_agent = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:47.0) Gecko/20100101 Firefox/47.0'
+    options.add_argument("user-agent="+user_agent)
+    options.add_argument("--start-maximized")
+    #options.headless = True
+    # disable logging flags that Chrome raises to the cmd window
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    driver = webdriver.Chrome(options = options)
+    driver.set_window_size(1440, 900)
+    driver.get('https://www.nihms.nih.gov/login/?next=/submission/')
+    try:
+        driver.find_element_by_class_name('federation-provider-button.era.usa-button').click()
+    except Exception as err:
+        try:
+            driver.find_element_by_class_name('era').click()
+        except Exception as err:
+            print('Failed both methods of login.  Check the class name of the eRA Login button.')        
+    WebDriverWait(driver, long_delay).until(
+                    EC.element_to_be_clickable((By.XPATH,'//*[@id="CredSelectorNotice"]/div/button'))
+                )
+    driver.find_element_by_id('USER').send_keys(login)
+    driver.find_element_by_id('PASSWORD').send_keys(password)
+    driver.find_element_by_xpath('//*[@id="CredSelectorNotice"]/div/button').click()
+    return driver
+
+
+def log_into_era(login, password, long_delay):
+    # set chrome driver options to headless
+    options = Options()
+    #user_agent = 'Mozilla/105.0 CK={} (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko'
+    user_agent = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:47.0) Gecko/20100101 Firefox/47.0'
     options.add_argument("user-agent="+user_agent)
     options.add_argument("--start-maximized")
     # disable logging flags that Chrome raises to the cmd window
     options.add_experimental_option('excludeSwitches', ['enable-logging'])
     #options.headless = True
     driver = webdriver.Chrome(options = options)
-    #driver.set_window_size(1440, 900)
-    driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
-    ## OR: https://www.ncbi.nlm.nih.gov/account/
-    driver.switch_to.frame(driver.find_element_by_id('loginframe'))
-    driver.find_element_by_id('era').click()
-    try:
-        element = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located((By.XPATH, '//*[@id="CredSelectorNotice"]/div/button')))
-    except Exception as err:
-        print('Unexpected error on eRA Commons login-- timeout or new Xpath values: %s' %err)
-    driver.find_element_by_id('USER').send_keys(login)
-    driver.find_element_by_id('PASSWORD').send_keys(password)
-    driver.find_element_by_xpath('//*[@id="CredSelectorNotice"]/div/button').click()
+    driver.set_window_size(1440, 900)
+    driver.get('https://public.era.nih.gov/commonsplus')
+    WebDriverWait(driver, long_delay).until(EC.element_to_be_clickable((By.ID,'clc_submit')))
+    driver.find_element_by_id('clc_user').send_keys(login)
+    driver.find_element_by_id('clc_password').send_keys(password)
+    driver.find_element_by_id('clc_submit').click()
     return driver
 
 
@@ -704,7 +736,8 @@ def get_nihms(logger, pmids, login, password, delay, long_delay):
     attempt = 1
     while attempt < 4:
         try:
-            driver = nihms_login(login, password)
+            #driver = nihms_login(login, password)
+            driver = nihms_login(login, password, long_delay)
             attempt = 4
         except Exception as err:
             logger.warning('Unable to log into ERA Commons, attempt %i; error: %s' % (attempt, str(err)))
@@ -715,7 +748,18 @@ def get_nihms(logger, pmids, login, password, delay, long_delay):
                 return driver
 
     # navigate to nihms
-    driver.get('https://www.nihms.nih.gov/submission/')
+    attempt = 1
+    while attempt < 4:
+        try:
+            #driver = nihms_login(login, password)
+            driver.get('https://www.nihms.nih.gov/submission/')
+            attempt = 4
+        except Exception as err:
+            logger.warning('Unable to access NIHMS, attempt %i; error: %s' % (attempt, str(err)))
+            attempt += 1
+            time.sleep(2)
+            if attempt == 3:
+                print('Failed to reach the NIHMS website, no data collected.')
     # click xpath for the NCBI access button - in case of errors, verify this xpath
     #driver.find_element_by_xpath('//*[@id="react-app"]/div/div/div[3]/div[3]/a').click()
 
@@ -1038,7 +1082,8 @@ def load_non_comp(report_id, rc_uri, rc_token, era_login, era_pass, delay, long_
     attempt = 1
     while attempt <= 3:
         try:
-            driver = ncbi_login(era_login, era_pass)
+            #driver = ncbi_login(era_login, era_pass)
+            driver = ncbi_login(era_login, era_pass, long_delay)
             attempt = 4
         except Exception as err:
             logger.warning('Unable to log into ERA Commons, attempt %i; error: %s' % (attempt, str(err)))
@@ -1198,7 +1243,8 @@ def query_pmc(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi
     attempt = 1
     while attempt < 4:
         try:
-            driver = ncbi_login(ncbi_creds, ncbi_pass)
+            #driver = ncbi_login(ncbi_creds, ncbi_pass)
+            driver = ncbi_login(ncbi_creds, ncbi_pass, long_delay)
             attempt = 4
         except Exception as err:
             logger.warning('Unable to log into ERA Commons, attempt %i; error: %s' % (attempt, str(err)))
@@ -1309,7 +1355,8 @@ def pmc_add_non_compliant(logger, timeframe, variations, delay, long_delay, ncbi
     attempt = 1
     while attempt < 4:
         try:
-            driver = ncbi_login(ncbi_creds, ncbi_pass)
+            #driver = ncbi_login(ncbi_creds, ncbi_pass)
+            driver = ncbi_login(ncbi_creds, ncbi_pass, long_delay)
             attempt = 4
         except Exception as err:
             logger.warning('Unable to log into ERA Commons, attempt %i; error: %s' % (attempt, str(err)))
