@@ -369,7 +369,7 @@ def ncbi_login(login, password, long_delay):
     options.add_argument("--start-maximized")
     # disable logging flags that Chrome raises to the cmd window
     options.add_experimental_option('excludeSwitches', ['enable-logging'])
-    #options.headless = True
+    options.headless = True
     driver = webdriver.Chrome(options = options)
     driver.set_window_size(1440, 900)
     driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
@@ -397,7 +397,7 @@ def nihms_login(login, password, long_delay):
     user_agent = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:47.0) Gecko/20100101 Firefox/47.0'
     options.add_argument("user-agent="+user_agent)
     options.add_argument("--start-maximized")
-    #options.headless = True
+    options.headless = True
     # disable logging flags that Chrome raises to the cmd window
     options.add_experimental_option('excludeSwitches', ['enable-logging'])
     driver = webdriver.Chrome(options = options)
@@ -428,7 +428,7 @@ def log_into_era(login, password, long_delay):
     options.add_argument("--start-maximized")
     # disable logging flags that Chrome raises to the cmd window
     options.add_experimental_option('excludeSwitches', ['enable-logging'])
-    #options.headless = True
+    options.headless = True
     driver = webdriver.Chrome(options = options)
     driver.set_window_size(1440, 900)
     driver.get('https://public.era.nih.gov/commonsplus')
@@ -500,7 +500,7 @@ def add_to_my_bib(driver, add_pubs, delay, long_delay, logger):
     next_button = True
     while next_button == True:
         try:
-            next_button = WebDriverWait(driver, delay).until(
+            next_button = WebDriverWait(driver, long_delay).until(
                                     EC.visibility_of_element_located((By.XPATH,'//*[@id="nextpage"]'))
                                 )
             next_button = next_button.is_displayed()
@@ -519,34 +519,36 @@ def add_to_my_bib(driver, add_pubs, delay, long_delay, logger):
         for checkbox in checkboxes:
             driver.execute_script("arguments[0].click();", checkbox)
 
-        try:
-            driver.find_element_by_xpath('//*[@id="nextpage"]').click()
-        except Exception as err:
-            #print('Failed to click next for some reason: %s', str(err))
-            pass
-        
-    if next_button == False:
-        try:
-            add_button = WebDriverWait(driver, long_delay).until(
-                EC.visibility_of_element_located((By.ID,'add'))
-                )
-            add_button.click()        
-        except Exception as err:
-            print('Failed to add publications. %s' %err)
-                
-        try:
-            add_success_msg = WebDriverWait(driver, long_delay).until(
-                EC.visibility_of_element_located((By.XPATH,'//*[@id="addblock"]/ul')))
-            print(driver.find_element_by_xpath('//*[@id="addblock"]/ul').get_attribute('innerText'))
-        except Exception as err:
-            print('Success message did not appear after clicking the add button. %s' %err)
+        if next_button == True:
+            try:
+                driver.find_element_by_xpath('//*[@id="nextpage"]').click()
+            except Exception as err:
+                print('No next button found, adding publications. %s' %err)
+                next_button = False
+        #else:
+        if next_button == False:
+            try:
+                add_button = WebDriverWait(driver, long_delay).until(
+                    EC.visibility_of_element_located((By.ID,'add'))
+                    )
+                add_button.click()        
+            except Exception as err:
+                print('Failed to add publications. %s' %err)
+                    
+            try:
+                add_success_msg = WebDriverWait(driver, long_delay).until(
+                    EC.visibility_of_element_located((By.XPATH,'//*[@id="addblock"]/ul')))
+                print(driver.find_element_by_xpath('//*[@id="addblock"]/ul').get_attribute('innerText'))
+            except Exception as err:
+                print('Success message did not appear after clicking the add button. %s' %err)
 
     try:
         #WebDriverWait(driver, long_delay).until(
         #                EC.visibility_of_element_located((By.XPATH, '/html/body/div[4]/div[1]/button/span[1]'))
         #            )
-        driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
+        #driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
         #driver.find_element_by_xpath('/html/body/div[5]/div[1]/button/span[1]').click()
+        driver.find_element_by_xpath('/html/body/div[6]/div[1]/button/span[1]').click()
     except Exception as err:
         print('Failed to close the search for publications box after adding. %s' %err)
         driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
