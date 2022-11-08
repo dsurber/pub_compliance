@@ -687,6 +687,8 @@ def scrape_nihms_status(driver, nihms, pmid, delay, long_delay):
     nihms_conversion = ''
     final_approval = ''
     pmcid_assigned = ''
+    nihms_step = ''
+    pmc_status = ''
 
     nihms_url = 'https://www.nihms.nih.gov/submission/' + nihms + '/'
     driver.get(nihms_url)
@@ -705,27 +707,34 @@ def scrape_nihms_status(driver, nihms, pmid, delay, long_delay):
     script_progress = soup.find_all('div', 'progress')[0]
     all_status = re.findall('<span>\\((.*?)\\ .*?\\)</span>', str(script_progress))
     if len(all_status) >= 5:
+        nihms_step = '6'
+        pmc_status = '1'
         files_uploaded = all_status[0]
         initial_approval = all_status[1]
         nihms_conversion = all_status[2]
         final_approval = all_status[3]
         pmcid_assigned = all_status[4]
     elif len(all_status) == 4:
+        nihms_step = '5'
         files_uploaded = all_status[0]
         initial_approval = all_status[1]
         nihms_conversion = all_status[2]
         final_approval = all_status[3]
     elif len(all_status) == 3:
+        nihms_step = '4'
+        pmc_status = '2'
         files_uploaded = all_status[0]
         initial_approval = all_status[1]
         nihms_conversion = all_status[2]
     elif len(all_status) == 2:
+        nihms_step = '3'
         files_uploaded = all_status[0]
         initial_approval = all_status[1]
     elif len(all_status) == 1:
+        nihms_step = '2'
         files_uploaded = all_status[0]
 
-    row = [pmid, nihms, pmc, reviewer, files_uploaded, initial_approval, nihms_conversion, final_approval, pmcid_assigned]
+    row = [pmid, nihms, pmc, reviewer, files_uploaded, initial_approval, nihms_conversion, final_approval, pmcid_assigned, nihms_step, pmc_status]
 
     return row
 
@@ -815,12 +824,14 @@ def get_nihms(logger, pmids, login, password, delay, long_delay):
         nihms_conversion = ''
         final_approval = ''
         pmcid_assigned = ''
+        nihms_step = '1'
+        pmc_status = ''
 
         # get the nihmsid
         if re.search('No manuscripts found', html) is not None:
-            row = [pmid, nihms, pmc, reviewer, files_uploaded, initial_approval, nihms_conversion, final_approval, pmcid_assigned]
+            row = [pmid, nihms, pmc, reviewer, files_uploaded, initial_approval, nihms_conversion, final_approval, pmcid_assigned, nihms_step, pmc_status]
         elif re.search('([0-9].*?)\t', html) is None:
-            row = [pmid, 'error', pmc, reviewer, files_uploaded, initial_approval, nihms_conversion, final_approval, pmcid_assigned]
+            row = [pmid, 'error', pmc, reviewer, files_uploaded, initial_approval, nihms_conversion, final_approval, pmcid_assigned, nihms_step, pmc_status]
         else:
             nihms = re.search('([0-9].*?)\t', html).group(1)
             row = scrape_nihms_status(driver, nihms, pmid, delay, long_delay)
@@ -828,10 +839,6 @@ def get_nihms(logger, pmids, login, password, delay, long_delay):
         rows.append(row)
 
     driver.close()
-
-    ## package the rows into a data frame
-    #nihms_frame = pd.DataFrame(rows, columns= ['pmid', 'nihms_id', 'pmc_id', 'reviewer', 'files_uploaded', 'initial_approval', 'nihms_conversion', 'final_approval', 'pmcid_assigned'])
-
     return rows
 
 
@@ -1434,7 +1441,7 @@ def query_nihms(logger, timeframe, delay, long_delay, ncbi_creds, ncbi_pass, rc_
         nihms_frame = pd.DataFrame(nihms_check, columns= ['pmid', 'nihms_id', 'pmc_id', 'reviewer', 
                                                           'files_uploaded', 'initial_approval', 
                                                           'nihms_conversion', 'final_approval', 
-                                                          'pmcid_assigned'])
+                                                          'pmcid_assigned', 'nihms_step', 'pmc_status'])
 
     nihms_frame['nihms_updated'] = [datetime.today().strftime("%Y-%m-%d")]*len(nihms_frame['pmid'])
 
