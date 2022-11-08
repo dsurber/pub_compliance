@@ -716,6 +716,7 @@ def scrape_nihms_status(driver, nihms, pmid, delay, long_delay):
         pmcid_assigned = all_status[4]
     elif len(all_status) == 4:
         nihms_step = '5'
+        pmc_status = '3'
         files_uploaded = all_status[0]
         initial_approval = all_status[1]
         nihms_conversion = all_status[2]
@@ -728,10 +729,12 @@ def scrape_nihms_status(driver, nihms, pmid, delay, long_delay):
         nihms_conversion = all_status[2]
     elif len(all_status) == 2:
         nihms_step = '3'
+        pmc_status = '3'
         files_uploaded = all_status[0]
         initial_approval = all_status[1]
     elif len(all_status) == 1:
         nihms_step = '2'
+        pmc_status = '3'
         files_uploaded = all_status[0]
 
     row = [pmid, nihms, pmc, reviewer, files_uploaded, initial_approval, nihms_conversion, final_approval, pmcid_assigned, nihms_step, pmc_status]
@@ -816,7 +819,7 @@ def get_nihms(logger, pmids, login, password, delay, long_delay):
 
 
         # initialize lists for the nihms status and progress details
-        nihms = ''
+        nihms = 'none'
         pmc = ''
         reviewer = ''
         files_uploaded = ''
@@ -831,7 +834,7 @@ def get_nihms(logger, pmids, login, password, delay, long_delay):
         if re.search('No manuscripts found', html) is not None:
             row = [pmid, nihms, pmc, reviewer, files_uploaded, initial_approval, nihms_conversion, final_approval, pmcid_assigned, nihms_step, pmc_status]
         elif re.search('([0-9].*?)\t', html) is None:
-            row = [pmid, 'error', pmc, reviewer, files_uploaded, initial_approval, nihms_conversion, final_approval, pmcid_assigned, nihms_step, pmc_status]
+            row = [pmid, nihms, pmc, reviewer, files_uploaded, initial_approval, nihms_conversion, final_approval, pmcid_assigned, '1', pmc_status]
         else:
             nihms = re.search('([0-9].*?)\t', html).group(1)
             row = scrape_nihms_status(driver, nihms, pmid, delay, long_delay)
