@@ -1281,8 +1281,8 @@ def query_pmc(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi
     elif timeframe == 'refresh':
         status_pmc = list(pubs_frame.pmid)
     else:
-        status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) & (pubs_frame.pmc_id == '')])
-        #status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) | (pubs_frame.pmc_id == '')])
+        status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date >= timeframe) & (pubs_frame.pmc_id == '')])
+        #status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date >= timeframe) | (pubs_frame.pmc_id == '')])
     
         ####################### scrape pmc information in batches
     pmc_rows = []
@@ -1393,8 +1393,8 @@ def pmc_add_non_compliant(logger, timeframe, variations, delay, long_delay, ncbi
     elif timeframe == 'refresh':
         status_pmc = list(pubs_frame.pmid)
     else:
-        status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) & (pubs_frame.pmc_id == '')])
-        #status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) | (pubs_frame.pmc_id == '')])
+        status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date >= timeframe) & (pubs_frame.pmc_id == '')])
+        #status_pmc = list(pubs_frame.pmid[(pubs_frame.pub_date >= timeframe) | (pubs_frame.pmc_id == '')])
     
     ####################### scrape pmc information in batches
     pmc_rows = []
@@ -1432,7 +1432,7 @@ def query_nihms(logger, timeframe, delay, long_delay, ncbi_creds, ncbi_pass, rc_
     elif timeframe == 'refresh':
         pmids = list(pubs_frame.pmid)
     else:
-        pmids = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe) & (pubs_frame.pmc_id == '')])
+        pmids = list(pubs_frame.pmid[(pubs_frame.pub_date >= timeframe) & (pubs_frame.pmc_id == '')])
 
     print('Beginning NIHMS data query for %i publications' % (len(pmids)))
     nihms_check = get_nihms(logger, pmids, ncbi_creds, ncbi_pass, delay, long_delay)
@@ -1474,7 +1474,7 @@ def query_icite(logger, timeframe, rc_uri, rc_token):
     if timeframe == 'all':
         pmids = list(pubs_frame['pmid'])
     else:
-        pmids = list(pubs_frame.pmid[(pubs_frame.pub_date > timeframe)])
+        pmids = list(pubs_frame.pmid[(pubs_frame.pub_date >= timeframe)])
     
     ##Dev Check!!
     print("Checking iCite for %i publications"% len(pubs_frame['pmid']))
