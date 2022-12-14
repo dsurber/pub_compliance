@@ -394,7 +394,8 @@ def nihms_login(login, password, long_delay):
     # set chrome driver options to headless
     options = Options()
     #user_agent = 'Mozilla/105.0 CK={} (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko'
-    user_agent = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:47.0) Gecko/20100101 Firefox/47.0'
+    #user_agent = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:47.0) Gecko/20100101 Firefox/47.0'
+    user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
     options.add_argument("user-agent="+user_agent)
     options.add_argument("--start-maximized")
     options.headless = True
@@ -1222,7 +1223,11 @@ def query_pubmed(logger, variations, ncbi_api, rc_uri = 'None', rc_token = 'None
     ###################### PubMed Summary Section
     ### Get table of publication details from pubmed for pmids
     # make dataframe of publications
+    
+    #!!!!!! Loop here for every 8000 or 9000 pmids...  !!!!!!!
     pubs_frame = summary(pmids, ncbi_api, variations)
+    
+
     # add compliant pmc status for publications with a pmcid
     pubs_frame['pmc_status'] = np.where(pubs_frame.pmcid == '', '', '1')
     # write table
