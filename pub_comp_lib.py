@@ -71,6 +71,10 @@ def variety(grant):
 	return vari
 
 
+def Filter(string, substr):
+    return [str for str in string if any(sub in str for sub in substr)]
+
+
 def details(pub, variations):
     # remove all white space and \n to help regex function
     pub = ''.join(pub.split('\n'))
@@ -210,13 +214,17 @@ def details(pub, variations):
 
     ## get grant list to clean up and compare with variations to get pubmed tags
     pubmed_tags = []
-    grant_list = re.split('<Grant>', pub)
-    for x in range(1, len(grant_list)):
-        if re.search('<GrantID>', grant_list[x]) is not None:
-            if re.search('<GrantID>(.*?)</GrantID>',
-                         grant_list[x]).group(1) in variations:
-                pubmed_tags.append(re.search('<GrantID>(.*?)</GrantID>',
-                                             grant_list[x]).group(1))
+    #grant_list = re.split('<Grant>', pub)
+    #for x in range(1, len(grant_list)):
+    #    if re.search('<GrantID>', grant_list[x]) is not None:
+    #        if re.search('<GrantID>(.*?)</GrantID>',
+    #                     grant_list[x]).group(1) in variations:
+    #            pubmed_tags.append(re.search('<GrantID>(.*?)</GrantID>',
+    #                                         grant_list[x]).group(1))
+
+    if '<GrantID>' in pub:
+        grant_list = re.findall('<GrantID>(.*?)</GrantID>', pub)
+        pubmed_tags = (Filter(grant_list, variations))
 
     pubmed_tags = ', '.join(pubmed_tags)
 
@@ -275,83 +283,74 @@ def details(pub, variations):
 
 
 def summary(pmids, ncbi_key, grants):
-
 	#***!!! developing !!!***
-	Entrez.email = "Your.Name.Here@example.org"
-	Entrez.api_key = ncbi_key
-	logger = logging.getLogger(__name__)
-	try:
-			from urllib.error import HTTPError # for Python 3
-	except ImportError:
-			from urllib2 import HTTPError # for Python 2
+    Entrez.email = "Your.Name.Here@example.org"
+    Entrez.api_key = ncbi_key
+    logger = logging.getLogger(__name__)
+    try:
+            from urllib.error import HTTPError # for Python 3
+    except ImportError:
+            from urllib2 import HTTPError # for Python 2
 
-	count = len(pmids)
-	records = []
-	attempt = 0
+    count = len(pmids)
+    records = []
+    attempt = 0
 
-	while attempt < 3:
-		attempt += 1
-		logger.info('Going to Epost pmid list results')
-		try:
-			# query pubmed with pmids and post results with ePost
-			post_xml = Entrez.epost('pubmed', id=','.join(pmids))
-			# read results
-			search_results = Entrez.read(post_xml)
-			# close the link
-			post_xml.close()
-			attempt = 4
-		except HTTPError as err:
-			if 500 <= err.code <= 599:
-				logger.warning('Received error from server: %s' % err)
-				logger.warning('Attempt %i of 3' % attempt)
-				time.sleep(10)
-			else:
-				raise
+    while attempt < 4:
+        attempt += 1
+        logger.info('Going to Epost pmid list results')
+        try:
+            # query pubmed with pmids and post results with ePost
+            post_xml = Entrez.epost('pubmed', id=','.join(pmids))
+            # read results
+            search_results = Entrez.read(post_xml)
+            # close the link
+            post_xml.close()
+            attempt = 4
+        except Exception as err:
+            logger.warning('Failed to Epost PubMed details: %s' % err)
+            time.sleep(10)
 
-	# set paramater values from ePost location to get xml with eFetch
-	webenv = search_results['WebEnv']
-	query_key = search_results['QueryKey']
+    # set paramater values from ePost location to get xml with eFetch
+    webenv = search_results['WebEnv']
+    query_key = search_results['QueryKey']
 
-	batch_size = 500
+    batch_size = 500
 
-	for start in range(0, count, batch_size):
-		end = min(count, start+batch_size)
-		logger.info('Going to fetch record %i to %i' % (start+1, end))
-		attempt = 0
-		while attempt < 3:
-			attempt += 1
-			try:
-				# use eFetch to get xml information out of ePost results
-				fetch_handle = Entrez.efetch(db='pubmed',
-				                             retstart=start, retmax=batch_size,
-				                             webenv=webenv, query_key=query_key,
-				                             retmode='xml')
-				records.extend(str(fetch_handle.read()))
-				fetch_handle.close
-				attempt = 4
-			except HTTPError as err:
-				if 500 <= err.code <= 599:
-					logger.warning('Received error from server: %s' % err)
-					logger.warning('Attempt %i of 3' % attempt)
-					time.sleep(10)
-				else:
-					raise
+    for start in range(0, count, batch_size):
+        end = min(count, start+batch_size)
+        logger.info('Going to fetch record %i to %i' % (start+1, end))
+        attempt = 0
+        while attempt < 5:
+            attempt += 1
+            try:
+                # use eFetch to get xml information out of ePost results
+                fetch_handle = Entrez.efetch(db='pubmed',
+                                             retstart=start, retmax=batch_size,
+                                             webenv=webenv, query_key=query_key,
+                                             retmode='xml')
+                records.extend(str(fetch_handle.read()))
+                fetch_handle.close
+                attempt = 5
+            except Exception as err:
+                    logger.warning('Failed to fetch PubMed details: %s' % err)
+                    time.sleep(10)
 
-	pub_list = re.split('<PubmedArticle>', ''.join(records))
-	rows = []
-	for x in range(1, len(pub_list)):
-		# assemble list of publication details
-		rows.append(details(pub_list[x], grants))
+    pub_list = re.split('<PubmedArticle>', ''.join(records))
+    rows = []
+    for x in range(1, len(pub_list)):
+        # assemble list of publication details
+        rows.append(details(pub_list[x], grants))
 
 
-	pubs_frame = pd.DataFrame(rows, columns=[
-	                          'pmid', 'pmcid', 'nihmsid',  'nctid', 'pub_title',
-	                          'authors', 'authors_lnames', 'authors_initials',
-	                          'orcid', 'authors_affil', 'pub_date', 'journal_short',
-	                          'journal_full', 'pubmed_tags', 'pub_type_list', 'exclude',
+    pubs_frame = pd.DataFrame(rows, columns=[
+                              'pmid', 'pmcid', 'nihmsid',  'nctid', 'pub_title',
+                              'authors', 'authors_lnames', 'authors_initials',
+                              'orcid', 'authors_affil', 'pub_date', 'journal_short',
+                              'journal_full', 'pubmed_tags', 'pub_type_list', 'exclude',
                               'mesh_major', 'mesh_minor', 'mesh_key'])
 
-	return pubs_frame
+    return pubs_frame
 
 
 ### clears text from a webpage element
@@ -1169,6 +1168,9 @@ def query_pubmed(logger, variations, ncbi_api, rc_uri = 'None', rc_token = 'None
     Entrez.email = "Your.Name.Here@example.org"
     Entrez.api_key = ncbi_api
 
+    # create fail point value in case PubMed query returns too many values
+    too_many_publications = 10000
+
     # create set for unique list of all pmids from querying pubmed with each
     # grant variation
     pmids = set()
@@ -1200,6 +1202,12 @@ def query_pubmed(logger, variations, ncbi_api, rc_uri = 'None', rc_token = 'None
 
     logger.info('All grant queries complete.')
     
+    ### Set stop value if PubMed query returns too many publications so they aren't imported into REDCap tracker
+    if len(pmids) > too_many_publications:
+        logger.info('Unexpected number of pmids returned by grant query of PubMed.  Failed before inaccurate publications imported into REDCap.')
+        print('Unexpected number of pmids returned by grant query of PubMed. Failed before inaccurate publications imported into REDCap')
+        return
+
     ### Update pmid set if a REDCap project is being used to track publications
     if rc_token is not None and rc_uri is not None:
         old_pmids = []
@@ -1222,10 +1230,22 @@ def query_pubmed(logger, variations, ncbi_api, rc_uri = 'None', rc_token = 'None
 
     ###################### PubMed Summary Section
     ### Get table of publication details from pubmed for pmids
-    # make dataframe of publications
-    
-    #!!!!!! Loop here for every 8000 or 9000 pmids...  !!!!!!!
-    pubs_frame = summary(pmids, ncbi_api, variations)
+    # loop over pmids list in batches to make dataframe of publication details
+    pmids = list(pmids)
+    count = len(pmids)
+    batchsize = 5000
+    pubs_frame = pd.DataFrame(columns=[
+                              'pmid', 'pmcid', 'nihmsid',  'nctid', 'pub_title',
+                              'authors', 'authors_lnames', 'authors_initials',
+                              'orcid', 'authors_affil', 'pub_date', 'journal_short',
+                              'journal_full', 'pubmed_tags', 'pub_type_list', 'exclude',
+                                  'mesh_major', 'mesh_minor', 'mesh_key'])
+
+    for start in range(0,count, batchsize):
+        end = min(count, start+batchsize)
+        #!!!!!! Loop here for every 8000 or 9000 pmids...  !!!!!!!
+        pubs_frame = pubs_frame.append(summary(pmids[start:end], ncbi_api, variations))
+    #pubs_frame = summary(pmids, ncbi_api, variations)
     
 
     # add compliant pmc status for publications with a pmcid

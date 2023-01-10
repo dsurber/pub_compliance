@@ -56,10 +56,10 @@ for x in range(len(config.grant_list)):
     config.grant_list[x] = pub_comp_lib.clean(config.grant_list[x])
 
 ### Create list for each grant with 34 grant variations - grant_vari.py
-variations = []
-for grant in config.grant_list:
-    variations.extend(pub_comp_lib.variety(grant))
-
+#variations = []
+#for grant in config.grant_list:
+#    variations.extend(pub_comp_lib.variety(grant))
+variations = config.grant_list
 ### check and process arguments passed at command line when script was called
 params = pub_comp_lib.check_argv(sys.argv, config.start)
 
