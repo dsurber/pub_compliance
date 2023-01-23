@@ -882,26 +882,27 @@ def altmetric(pmids):
     #pmids = [pmids[i:i+900] for i in range(0, len(pmids), 900)]
     # initialize the altmetric dataframe so it can be appended by the loop
     altmet_df = pd.DataFrame(columns = ['title', 'doi', 'pmid', 'pmc',
-                             'ads_id', 'isbns', 'altmetric_jid',
-       'issns', 'journal', 'cohorts', 'abstract', 'context', 'authors', 'type',
-       'handles', 'altmetric_id', 'schema', 'is_oa', 'cited_by_posts_count',
-       'cited_by_tweeters_count', 'cited_by_accounts_count', 'last_updated',
-       'score', 'history', 'url', 'added_on', 'published_on', 'subjects',
-       'readers', 'readers_count', 'images', 'details_url', 'uri',
-       'publisher_subjects', 'cited_by_policies_count', 'scopus_subjects',
-       'cited_by_msm_count', 'cited_by_fbwalls_count', 'abstract_source',
-       'cited_by_patents_count', 'cited_by_wikipedia_count', 'downloads',
-       'cited_by_weibo_count', 'cited_by_feeds_count',
-       'cited_by_peer_review_sites_count', 'cited_by_rdts_count',
-       'cited_by_videos_count', 'cited_by_gplus_count', 'cited_by_rh_count',
-       'handle', 'ordinal_number', 'cited_by_linkedin_count',
-       'cited_by_pinners_count', 'arxiv_id', 'cited_by_qna_count',
-       'attribution', 'editors'])
+                                 'ads_id', 'isbns', 'altmetric_jid',
+           'issns', 'journal', 'cohorts', 'abstract', 'context', 'authors', 'type',
+           'handles', 'altmetric_id', 'schema', 'is_oa', 'cited_by_posts_count',
+           'cited_by_tweeters_count', 'cited_by_accounts_count', 'last_updated',
+           'score', 'history', 'url', 'added_on', 'published_on', 'subjects',
+           'readers', 'readers_count', 'images', 'details_url', 'uri',
+           'publisher_subjects', 'cited_by_policies_count', 'scopus_subjects',
+           'cited_by_msm_count', 'cited_by_fbwalls_count', 'abstract_source',
+           'cited_by_patents_count', 'cited_by_wikipedia_count', 'downloads',
+           'cited_by_weibo_count', 'cited_by_feeds_count',
+           'cited_by_peer_review_sites_count', 'cited_by_rdts_count',
+           'cited_by_videos_count', 'cited_by_gplus_count', 'cited_by_rh_count',
+           'handle', 'ordinal_number', 'cited_by_linkedin_count',
+           'cited_by_pinners_count', 'arxiv_id', 'cited_by_qna_count',
+           'attribution', 'editors'])
 
+    tmp=[]
     for pmid in pmids:
 
         try:
-            response = a.pmid(pmid)
+            response = a.pmid(str(pmid))
         except Exception as err:
             print("Failed altmetric query for " + str(pmid))
             response = None
@@ -909,29 +910,18 @@ def altmetric(pmids):
         if response != None:
             df = pd.DataFrame.from_dict(response, orient='index').transpose()
         else:
-            df = pd.DataFrame(columns = ['title', 'doi', 'pmid', 'pmc',
-                              'ads_id', 'isbns', 'altmetric_jid',
-       'issns', 'journal', 'cohorts', 'abstract', 'context', 'authors', 'type',
-       'handles', 'altmetric_id', 'schema', 'is_oa', 'cited_by_posts_count',
-       'cited_by_tweeters_count', 'cited_by_accounts_count', 'last_updated',
-       'score', 'history', 'url', 'added_on', 'published_on', 'subjects',
-       'readers', 'readers_count', 'images', 'details_url', 'uri',
-       'publisher_subjects', 'cited_by_policies_count', 'scopus_subjects',
-       'cited_by_msm_count', 'cited_by_fbwalls_count', 'abstract_source',
-       'cited_by_patents_count', 'cited_by_wikipedia_count', 'downloads',
-       'cited_by_weibo_count', 'cited_by_feeds_count',
-       'cited_by_peer_review_sites_count', 'cited_by_rdts_count',
-       'cited_by_videos_count', 'cited_by_gplus_count', 'cited_by_rh_count',
-       'handle', 'ordinal_number', 'cited_by_linkedin_count',
-       'cited_by_pinners_count', 'arxiv_id', 'cited_by_qna_count',
-       'attribution', 'editors'])
-            #df['pmid'] = str(pmid)
-        altmet_df = altmet_df.append(df)
-        #altmet_df = altmet_df.append(pd.DataFrame(response))
-        altmet_df['pmid'] = altmet_df['pmid'].astype(str)
-        altmet_df['last_import'] = [datetime.today().strftime("%Y-%m-%d")]*len(altmet_df['pmid'])
+            #df = altmet_df
+            #df = pd.DataFrame([[pmid, '']], columns = ['pmid', 'pmc'])
+            df = pd.DataFrame([pmid], columns = ['pmid'])
+
+        tmp.append(df)
         time.sleep(2)
 
+    altmet_df = pd.concat(tmp, ignore_index=True)
+    altmet_df['pmid'] = altmet_df['pmid'].astype(str)
+    altmet_df['last_import'] = [datetime.today().strftime("%Y-%m-%d")]*len(altmet_df['pmid'])
+    if 'pmc' in altmet_df.columns:
+        altmet_df['pmc'] = altmet_df['pmc'].replace('PMC', '', regex = True)
     return altmet_df
 
 
