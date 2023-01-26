@@ -916,7 +916,6 @@ def altmetric(pmids):
 
         tmp.append(df)
         time.sleep(2)
-
     altmet_df = pd.concat(tmp, ignore_index=True)
     altmet_df['pmid'] = altmet_df['pmid'].astype(str)
     altmet_df['last_import'] = [datetime.today().strftime("%Y-%m-%d")]*len(altmet_df['pmid'])
