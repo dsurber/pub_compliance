@@ -78,7 +78,7 @@ if 'pubmed' in db:
 if 'pmc' in db:
     pmc_start = time.time()
     print('PMC started at '+ str(datetime.now()))
-    pub_comp_lib.query_pmc(logger, timeframe, variations, delay, long_delay, config.ncbi_login, 
+    pub_comp_lib.query_pmc(logger, timeframe, variations, config.bib_username, delay, long_delay, config.ncbi_login, 
     						config.ncbi_pass, config.rc_uri, config.rc_token)
     print('PMC query complete in {0:0.1f} minutes' .format((time.time()-pmc_start)/60))
     
@@ -104,7 +104,7 @@ if 'altmetric' in db:
 if len(sys.argv) >= 2 and sys.argv[1] == 'compliance':
 	load_compliance_start = time.time()
 	print('Loading non-compliant publications started at '+ str(datetime.now()))
-	pub_comp_lib.pmc_add_non_compliant(logger, timeframe, variations, delay, long_delay, config.ncbi_login, 
+	pub_comp_lib.pmc_add_non_compliant(logger, timeframe, variations, config.bib_username, delay, long_delay, config.ncbi_login, 
     						config.ncbi_pass, config.rc_uri, config.rc_token)
 	print('Loading non-compliant publications complete in {0:0.1f} minutes' .format((time.time()-load_compliance_start)/60))
     

@@ -1084,7 +1084,7 @@ def RC_update_status(pub_comp):
 
     return pub_comp
 
-def load_non_comp(report_id, rc_uri, rc_token, era_login, era_pass, delay, long_delay, logger):
+def load_non_comp(report_id, rc_uri, rc_token, era_login, era_pass, bib_username, delay, long_delay, logger):
     project = Project(rc_uri, rc_token)
     non_comp = project.export_reports(report_id=report_id, format='df')
     non_comp.reset_index(level = 0, inplace = True)
@@ -1113,7 +1113,7 @@ def load_non_comp(report_id, rc_uri, rc_token, era_login, era_pass, delay, long_
         bibname = driver.find_element_by_id('bibname').text
     except Exception as err:
         return 'While loading Non-Compliant list: Could not get a user name for the MyBibliography, quit out of caution.'
-    if config.bib_username in bibname:
+    if bib_username in bibname:
         print('MyBibliography username is a match.')
     else:
         return 'While loading Non-Compliant list: Wrong MyBibliography username.  Quit out of caution'
@@ -1288,7 +1288,7 @@ def query_pubmed(logger, variations, ncbi_api, rc_uri = 'None', rc_token = 'None
     ###################### END PubMed Summary Section
 
 
-def query_pmc(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi_pass, rc_uri, rc_token):
+def query_pmc(logger, timeframe, variations, bib_username, delay, long_delay, ncbi_creds, ncbi_pass, rc_uri, rc_token):
     # log into era commons
     attempt = 1
     while attempt < 4:
@@ -1345,7 +1345,7 @@ def query_pmc(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi
         except Exception as err:
             logger.warning('Could not get a user name for the MyBibliography, quit out of caution: %s' % str(err))
             return
-        if config.bib_username in bibname:
+        if bib_username in bibname:
             print('MyBibliography username is a match.')
         else:
             logger.warning('Wrong MyBibliography username.  Quit out of caution')
@@ -1367,7 +1367,7 @@ def query_pmc(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi
         except Exception as err:
             logger.warning('Could not get a user name for the MyBibliography, quit out of caution: %s' % str(err))
             return
-        if config.bib_username in bibname:
+        if bib_username in bibname:
             print('MyBibliography username is a match.')
         else:
             logger.warning('Wrong MyBibliography username.  Quit out of caution')
@@ -1426,7 +1426,7 @@ def query_pmc(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi
     return
     ###################### END PMC Section
 
-def pmc_add_non_compliant(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi_pass, rc_uri, rc_token):
+def pmc_add_non_compliant(logger, timeframe, variations, bib_username, delay, long_delay, ncbi_creds, ncbi_pass, rc_uri, rc_token):
     # log into era commons
     attempt = 1
     while attempt < 4:
@@ -1470,7 +1470,19 @@ def pmc_add_non_compliant(logger, timeframe, variations, delay, long_delay, ncbi
         # reload my bib, clear all publications and load pmids in status_pmc
         print('Starting new batch: ' + str(start) + '-' + str(end) + ', Currently have gathered ' + str(len(pmc_rows)) +' rows.')
         driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
-        time.sleep(long_delay)
+        time.sleep(delay)
+        #Check that id "bibname" text contains the config bibliography user so any delegated
+        # bibliographies don't get cleared by accident - if username can't be loaded or 
+        # doesn't match the name in the config file, quit and return the error message.
+        #driver.find_element_by_id('bibname').text
+        try:
+            bibname = driver.find_element_by_id('bibname').text
+        except Exception as err:
+            return 'While loading Non-Compliant list: Could not get a user name for the MyBibliography, quit out of caution.'
+        if bib_username in bibname:
+            print('MyBibliography username is a match.')
+        else:
+            return 'While loading Non-Compliant list: Wrong MyBibliography username.  Quit out of caution'
         add_to_my_bib(driver, status_pmc[start:end], delay, long_delay, logger)
         print('**Added ' + str(end-start) + ' pubs to MyBib: ' + str(start) + '-' + str(end) + ' pmids ' + str(status_pmc[start]) + '-' + str(status_pmc[end-1]))
     return
