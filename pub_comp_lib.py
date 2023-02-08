@@ -1093,6 +1093,20 @@ def load_non_comp(report_id, rc_uri, rc_token, era_login, era_pass, delay, long_
 
     time.sleep(delay)
     driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
+    time.sleep(delay)
+
+    #Check that id "bibname" text contains the config bibliography user so any delegated
+    # bibliographies don't get cleared by accident - if username can't be loaded or 
+    # doesn't match the name in the config file, quit and return the error message.
+    #driver.find_element_by_id('bibname').text
+    try:
+        bibname = driver.find_element_by_id('bibname').text
+    except Exception as err:
+        return 'While loading Non-Compliant list: Could not get a user name for the MyBibliography, quit out of caution.'
+    if config.bib_username in bibname:
+        print('MyBibliography username is a match.')
+    else:
+        return 'While loading Non-Compliant list: Wrong MyBibliography username.  Quit out of caution'
 
     clear_my_bib(driver, delay, logger)
     print('*Cleared MyBib')
@@ -1313,6 +1327,19 @@ def query_pmc(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi
         WebDriverWait(driver, long_delay).until(
                     EC.visibility_of_element_located((By.ID,'main_content'))
                 )
+        #Check that id "bibname" text contains the config bibliography user so any delegated
+        # bibliographies don't get cleared by accident
+        #driver.find_element_by_id('bibname').text
+        try:
+            bibname = driver.find_element_by_id('bibname').text
+        except Exception as err:
+            logger.warning('Could not get a user name for the MyBibliography, quit out of caution: %s' % str(err))
+            return
+        if config.bib_username in bibname:
+            print('MyBibliography username is a match.')
+        else:
+            logger.warning('Wrong MyBibliography username.  Quit out of caution')
+            return
         clear_my_bib(driver, delay, logger)
         print('*Cleared MyBib')
         #time.sleep(long_delay)
@@ -1322,6 +1349,19 @@ def query_pmc(logger, timeframe, variations, delay, long_delay, ncbi_creds, ncbi
         # reload my bib and begin scraping each page of citations
         #time.sleep(long_delay)
         driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
+        #Check that id "bibname" text contains the config bibliography user so any delegated
+        # bibliographies don't get cleared by accident
+        #driver.find_element_by_id('bibname').text
+        try:
+            bibname = driver.find_element_by_id('bibname').text
+        except Exception as err:
+            logger.warning('Could not get a user name for the MyBibliography, quit out of caution: %s' % str(err))
+            return
+        if config.bib_username in bibname:
+            print('MyBibliography username is a match.')
+        else:
+            logger.warning('Wrong MyBibliography username.  Quit out of caution')
+            return
         #time.sleep(long_delay)
         ######## Wait until 'main_content' loads on webpage for refresh
         try:

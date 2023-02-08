@@ -13,6 +13,9 @@ rc_uri = ""
 # REDCap API Token for Publication Tracking project
 rc_token = ""
 
+#MyNCBI Bibliography Name
+bib_username = ""
+
 # MyNCBI Login 
 ncbi_login = ""
 # MyNCBI Password
