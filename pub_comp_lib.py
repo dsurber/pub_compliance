@@ -466,101 +466,111 @@ def clear_my_bib(driver, delay, logger):
 def add_to_my_bib(driver, add_pubs, delay, long_delay, logger):
     # ## Open the 'Add Citations' window
     # Wait for page to load then open the 'Add Citations' window
+
     try:
         add_citation = WebDriverWait(driver, long_delay).until(
-                    EC.presence_of_element_located((By.XPATH, '//*[@id="add-drop"]/li[1]/a'))
-                )
-    #element_located_to_be_selected
-    #presence_of_element_located
+                        EC.presence_of_element_located((By.XPATH, '//*[@id="add-drop"]/li[1]/a'))
+                    )
+        #element_located_to_be_selected
+        #presence_of_element_located
     except Exception as err:
         logger.warning('add-citation button did not load in time: %s' %err)
         print('unable to add citations, load time or page error: %s' %err)
-        #return
-
     #add_citation = driver.find_element_by_xpath('//*[@id="add-drop"]/li[1]/a')
     driver.execute_script("arguments[0].click();", add_citation)
-
-    # ## Add citations and search
     try:
         search_field = WebDriverWait(driver, long_delay).until(
-            EC.visibility_of_element_located((By.XPATH,'//*[@id="term"]'))
-        )
+                    EC.visibility_of_element_located((By.XPATH,'//*[@id="term"]'))
+                )
     except Exception as err:
-        print('Search bar for publications did not load in time: %s' %err) 
+        print('Search bar for publications did not load in time: %s' %err)
     search_field.send_keys(', '.join(add_pubs))
-
+    time.sleep(2)
     try:
         search_button = WebDriverWait(driver, long_delay).until(
-            EC.visibility_of_element_located((By.XPATH,'//*[@id="search-but"]'))
-        )
+                    EC.visibility_of_element_located((By.XPATH,'//*[@id="search-but"]'))
+                )
         search_button.click()
+        time.sleep(2)
     except Exception as err:
         print('Search button did not load in time: %s' %err)
 
     next_button = True
+
     while next_button == True:
-        try:
-            next_button = WebDriverWait(driver, long_delay).until(
-                                    EC.visibility_of_element_located((By.XPATH,'//*[@id="nextpage"]'))
-                                )
-            next_button = next_button.is_displayed()
-        except Exception as err:
-            #print('No next button found, adding publications. %s' %err)
-            next_button = False
-
-        try:
-            WebDriverWait(driver, delay).until(
-                        EC.visibility_of_element_located((By.CSS_SELECTOR, "#search-results input[type='checkbox']"))
-                    )
-        except Exception as err:
-            pass
-
+        attempt = 0
+        while attempt < 3:
+            try:
+                page_num = WebDriverWait(driver, long_delay).until(
+                                                EC.visibility_of_element_located((By.ID,'pagenum'))
+                                            )
+                page_num = int(page_num.text)
+                next_page = page_num + 1
+                attempt = 3
+            except Exception as err:
+                attempt += 1
+                time.sleep(2)
+        time.sleep(1)
         checkboxes = driver.find_elements_by_css_selector("#search-results input[type='checkbox']")
         for checkbox in checkboxes:
             driver.execute_script("arguments[0].click();", checkbox)
+            time.sleep(0.01)
+        time.sleep(1)
+        attempt = 0
+        while attempt < 2:
+            try:
+                next_button = WebDriverWait(driver, delay).until(
+                                        EC.visibility_of_element_located((By.XPATH,'//*[@id="nextpage"]'))
+                                    )
+                next_button = next_button.is_displayed()
+                attempt = 2
+            except Exception as err:
+                attempt += 1
+                time.sleep(1)
+                next_button = False
 
         if next_button == True:
+            driver.find_element_by_xpath('//*[@id="nextpage"]').click()
+            attempt = 0
+            while attempt < 3:
+                try:
+                    page_num = WebDriverWait(driver, delay).until(
+                                                    EC.visibility_of_element_located((By.ID,'pagenum'))
+                                                )
+                    page_num = int(page_num.text)
+                except Exception as err:
+                    attempt += 1
+                    time.sleep(2)
+                if page_num != next_page:
+                    time.sleep(2)
+                    attempt += 1
+                else: 
+                    attempt = 3
+        else:
+            WebDriverWait(driver, long_delay).until(
+                            EC.visibility_of_element_located((By.ID,'add'))
+                            )
             try:
-                driver.find_element_by_xpath('//*[@id="nextpage"]').click()
-            except Exception as err:
-                print('No next button found, adding publications. %s' %err)
-                next_button = False
-        #else:
-        if next_button == False:
-            try:
-                add_button = WebDriverWait(driver, long_delay).until(
-                    EC.visibility_of_element_located((By.ID,'add'))
-                    )
-                add_button.click()        
+                driver.find_element_by_id('add').click()
             except Exception as err:
                 print('Failed to add publications. %s' %err)
-                    
             try:
                 add_success_msg = WebDriverWait(driver, long_delay).until(
-                    EC.visibility_of_element_located((By.XPATH,'//*[@id="addblock"]/ul')))
+                            EC.visibility_of_element_located((By.XPATH,'//*[@id="addblock"]/ul')))
                 print(driver.find_element_by_xpath('//*[@id="addblock"]/ul').get_attribute('innerText'))
             except Exception as err:
                 print('Success message did not appear after clicking the add button. %s' %err)
-
     try:
-        #WebDriverWait(driver, long_delay).until(
-        #                EC.visibility_of_element_located((By.XPATH, '/html/body/div[4]/div[1]/button/span[1]'))
-        #            )
-        #driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
-        #driver.find_element_by_xpath('/html/body/div[5]/div[1]/button/span[1]').click()
-        driver.find_element_by_xpath('/html/body/div[6]/div[1]/button/span[1]').click()
+            #WebDriverWait(driver, long_delay).until(
+            #                EC.visibility_of_element_located((By.XPATH, '/html/body/div[4]/div[1]/button/span[1]'))
+            #            )
+            #driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
+            #driver.find_element_by_xpath('/html/body/div[5]/div[1]/button/span[1]').click()
+        driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
     except Exception as err:
         print('Failed to close the search for publications box after adding. %s' %err)
         driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
 
-    #try:
-        #driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
-        #driver.find_element_by_xpath('/html/body/div[5]/div[1]/button/span[1]').click()
-    #except Exception as err:
-        #print('Failed to close the search for publications box after adding. %s' %err)
-        #driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
-
-    ############ End new dev
 
 def scrape_citations(cite, count, grants, driver, delay, long_delay, logger):
     load_awards_delay = long_delay
