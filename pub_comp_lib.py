@@ -906,11 +906,11 @@ def altmetric(pmids):
            'cited_by_videos_count', 'cited_by_gplus_count', 'cited_by_rh_count',
            'handle', 'ordinal_number', 'cited_by_linkedin_count',
            'cited_by_pinners_count', 'arxiv_id', 'cited_by_qna_count',
-           'attribution', 'editors'])
+           'attribution', 'editors', 'pubdate', 'epubdate'])
 
-    tmp=[]
+    df_list=[]
     for pmid in pmids:
-
+        temp = altmet_df
         try:
             response = a.pmid(str(pmid))
         except Exception as err:
@@ -918,15 +918,15 @@ def altmetric(pmids):
             response = None
 
         if response != None:
-            df = pd.DataFrame.from_dict(response, orient='index').transpose()
+            temp = pd.concat([temp, pd.DataFrame.from_dict(response, orient='index').transpose()])
         else:
             #df = altmet_df
             #df = pd.DataFrame([[pmid, '']], columns = ['pmid', 'pmc'])
-            df = pd.DataFrame([pmid], columns = ['pmid'])
+            temp = pd.concat([temp, pd.DataFrame([{'pmid': pmid}])])
 
-        tmp.append(df)
-        time.sleep(2)
-    altmet_df = pd.concat(tmp, ignore_index=True)
+        df_list.append(temp)
+        time.sleep(1)
+    altmet_df = pd.concat(df_list, ignore_index=True)
     altmet_df['pmid'] = altmet_df['pmid'].astype(str)
     altmet_df['last_import'] = [datetime.today().strftime("%Y-%m-%d")]*len(altmet_df['pmid'])
     if 'pmc' in altmet_df.columns:
@@ -1625,7 +1625,7 @@ def query_altmetric(logger, timeframe, rc_uri, rc_token):
             'altmetric_handle', 'altmetric_ordinal_number',
             'altmetric_cited_by_linkedin_count', 'altmetric_cited_by_pinners_count',
             'altmetric_arxiv_id', 'altmetric_cited_by_qna_count',
-            'altmetric_attribution', 'altmetric_editors',
+            'altmetric_attribution', 'altmetric_editors', 'altmetric_pubdate', 'altmetric_epubdate',
             'altmetric_last_import_date']
     altmetric_df['pmid'] = altmetric_df['altmetric_pmid']
     
