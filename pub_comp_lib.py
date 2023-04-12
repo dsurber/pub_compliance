@@ -297,7 +297,6 @@ def summary(pmids, ncbi_key, grants):
     attempt = 0
 
     while attempt < 4:
-        attempt += 1
         logger.info('Going to Epost pmid list results')
         try:
             # query pubmed with pmids and post results with ePost
@@ -309,7 +308,18 @@ def summary(pmids, ncbi_key, grants):
             attempt = 4
         except Exception as err:
             logger.warning('Failed to Epost PubMed details: %s' % err)
+            attempt += 1
             time.sleep(10)
+            if attempt == 4:
+                print("Failed PubMed Query - Check Log for Epost Message")
+                pubs_frame = pd.DataFrame(columns=[
+                              'pmid', 'pmcid', 'nihmsid',  'nctid', 'pub_title',
+                              'authors', 'authors_lnames', 'authors_initials',
+                              'orcid', 'authors_affil', 'pub_date', 'journal_short',
+                              'journal_full', 'pubmed_tags', 'pub_type_list', 'exclude',
+                              'mesh_major', 'mesh_minor', 'mesh_key'])
+                return pubs_frame
+
 
     # set paramater values from ePost location to get xml with eFetch
     webenv = search_results['WebEnv']
@@ -925,7 +935,7 @@ def altmetric(pmids):
             temp = pd.concat([temp, pd.DataFrame([{'pmid': pmid}])])
 
         df_list.append(temp)
-        time.sleep(1)
+        time.sleep(2)
     altmet_df = pd.concat(df_list, ignore_index=True)
     altmet_df['pmid'] = altmet_df['pmid'].astype(str)
     altmet_df['last_import'] = [datetime.today().strftime("%Y-%m-%d")]*len(altmet_df['pmid'])
@@ -1241,10 +1251,24 @@ def query_pubmed(logger, variations, ncbi_api, rc_uri = 'None', rc_token = 'None
                                 columns=['pmid', 'first_discovered'])
             response = project.import_records(first_discovered_frame)
 
+    pmids = list(pmids)
+    
+    ### Check pmids for only digits in the pmid list of strings, pop out any surprises
+    count = 0
+    pop_list = []
+    for x in pmids:
+        if x.isdigit() == False:
+            print(x + "; at " + str(count) + " I'm getting rid of it.")
+            pop_list.append(count)
+        count += 1
+
+    pop_set = set(pop_list)
+    pmids_checked = [x for i, x in enumerate(pmids) if i not in pop_set]
+
     ###################### PubMed Summary Section
     ### Get table of publication details from pubmed for pmids
     # loop over pmids list in batches to make dataframe of publication details
-    pmids = list(pmids)
+    pmids = pmids_checked
     count = len(pmids)
     batchsize = 5000
     pubs_frame = pd.DataFrame(columns=[
@@ -1324,7 +1348,7 @@ def query_pmc(logger, timeframe, variations, bib_username, delay, long_delay, nc
     
         ####################### scrape pmc information in batches
     pmc_rows = []
-    batch_size = 250
+    batch_size = 200
     count = len(status_pmc)
 
     for start in range(0, count, batch_size):
