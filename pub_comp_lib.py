@@ -1270,7 +1270,7 @@ def query_pubmed(logger, variations, ncbi_api, rc_uri = 'None', rc_token = 'None
     # loop over pmids list in batches to make dataframe of publication details
     pmids = pmids_checked
     count = len(pmids)
-    batchsize = 5000
+    batchsize = 6000
     pubs_frame = pd.DataFrame(columns=[
                               'pmid', 'pmcid', 'nihmsid',  'nctid', 'pub_title',
                               'authors', 'authors_lnames', 'authors_initials',
@@ -1278,6 +1278,7 @@ def query_pubmed(logger, variations, ncbi_api, rc_uri = 'None', rc_token = 'None
                               'journal_full', 'pubmed_tags', 'pub_type_list', 'exclude',
                                   'mesh_major', 'mesh_minor', 'mesh_key'])
 
+    ###!!!!! ***** THERES AN ERROR HERE.  RAISING THE BATCHSIZE TO PREVENT LOOPING FIXED FOR NOW!!!!
     for start in range(0,count, batchsize):
         end = min(count, start+batchsize)
         #!!!!!! Loop here for every 8000 or 9000 pmids...  !!!!!!!
