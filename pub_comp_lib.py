@@ -75,7 +75,7 @@ def Filter(string, substr):
     return [str for str in string if any(sub in str for sub in substr)]
 
 
-def details(pub, variations):
+def details(pub, variations, logger):
     # remove all white space and \n to help regex function
     pub = ''.join(pub.split('\n'))
 
@@ -90,6 +90,11 @@ def details(pub, variations):
         nihmsid = re.search('mid\">NIHMS(.*?)</ArticleId>', pub).group(1)
     else:
         nihmsid = ''
+    # if doi exists
+    if re.search('<ArticleId IdType=\"doi\">(.*?)</ArticleId>', pub) is not None:
+        doi = re.search('<ArticleId IdType=\"doi\">(.*?)</ArticleId>', pub).group(1)
+    else:
+        doi = ''
     # if nctid exists
     nctid = []
     if re.search('NCT(.*?)</AccessionNumber>', pub) is not None:
@@ -212,6 +217,16 @@ def details(pub, variations):
     else:
         journal_full = 'Unknown'
 
+    # get pmc_embargo_date
+    if re.search('PubStatus="pmc-release"><Year>(.*?)</PubMedPubDate>', pub) is not None:
+        embargo_str = re.search('PubStatus="pmc-release">(.*?)</PubMedPubDate>', pub).group(1)
+        embargo_year = re.search('<Year>(.*?)</Year>', embargo_str).group(1)
+        embargo_month = re.search('<Month>(.*?)</Month>', embargo_str).group(1)
+        embargo_day = re.search('<Day>(.*?)</Day>', embargo_str).group(1)
+        pmc_embargo_date = embargo_year + '-' + embargo_month + '-' + embargo_day
+    else:
+        pmc_embargo_date = ''
+
     ## get grant list to clean up and compare with variations to get pubmed tags
     pubmed_tags = []
     #grant_list = re.split('<Grant>', pub)
@@ -274,15 +289,15 @@ def details(pub, variations):
     mesh_key = '; '.join(key_topics)
 
     ## assemble all values for the row of the dataframe to be returned
-    row = [pmid, pmcid, nihmsid,  nctid, pub_title, authors,
+    row = [pmid, pmcid, nihmsid, doi, nctid, pub_title, authors,
             authors_lnames, authors_initials, authors_orcid, authors_affil,
-            pub_date, journal_short, journal_full, pubmed_tags, pub_type_list,
+            pub_date, pmc_embargo_date,journal_short, journal_full, pubmed_tags, pub_type_list,
             exclude, mesh_major, mesh_minor, mesh_key]
 
     return row
 
 
-def summary(pmids, ncbi_key, grants):
+def summary(pmids, ncbi_key, grants, logger):
 	#***!!! developing !!!***
     Entrez.email = "Your.Name.Here@example.org"
     Entrez.api_key = ncbi_key
@@ -313,11 +328,11 @@ def summary(pmids, ncbi_key, grants):
             if attempt == 4:
                 print("Failed PubMed Query - Check Log for Epost Message")
                 pubs_frame = pd.DataFrame(columns=[
-                              'pmid', 'pmcid', 'nihmsid',  'nctid', 'pub_title',
+                              'pmid', 'pmcid', 'nihmsid', 'doi', 'nctid', 'pub_title',
                               'authors', 'authors_lnames', 'authors_initials',
-                              'orcid', 'authors_affil', 'pub_date', 'journal_short',
-                              'journal_full', 'pubmed_tags', 'pub_type_list', 'exclude',
-                              'mesh_major', 'mesh_minor', 'mesh_key'])
+                              'orcid', 'authors_affil', 'pub_date', 'pmc_embargo_date', 
+                              'journal_short', 'journal_full', 'pubmed_tags', 'pub_type_list', 
+                              'exclude', 'mesh_major', 'mesh_minor', 'mesh_key'])
                 return pubs_frame
 
 
@@ -350,15 +365,15 @@ def summary(pmids, ncbi_key, grants):
     rows = []
     for x in range(1, len(pub_list)):
         # assemble list of publication details
-        rows.append(details(pub_list[x], grants))
+        rows.append(details(pub_list[x], grants, logger))
 
 
     pubs_frame = pd.DataFrame(rows, columns=[
-                              'pmid', 'pmcid', 'nihmsid',  'nctid', 'pub_title',
+                              'pmid', 'pmcid', 'nihmsid', 'doi', 'nctid', 'pub_title',
                               'authors', 'authors_lnames', 'authors_initials',
-                              'orcid', 'authors_affil', 'pub_date', 'journal_short',
-                              'journal_full', 'pubmed_tags', 'pub_type_list', 'exclude',
-                              'mesh_major', 'mesh_minor', 'mesh_key'])
+                              'orcid', 'authors_affil', 'pub_date', 'pmc_embargo_date', 
+                              'journal_short', 'journal_full', 'pubmed_tags', 'pub_type_list', 
+                              'exclude', 'mesh_major', 'mesh_minor', 'mesh_key'])
 
     return pubs_frame
 
@@ -378,23 +393,27 @@ def ncbi_login(login, password, long_delay):
     options.add_argument("--start-maximized")
     # disable logging flags that Chrome raises to the cmd window
     options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    # disable logging flags or informational message around chromium using TensorFlow: INFO = 0, 
+    #  WARNING = 1, LOG_ERROR = 2, LOG_FATAL = 3.
+    options.add_argument("--log-level=2")
     options.headless = True
     driver = webdriver.Chrome(options = options)
     driver.set_window_size(1440, 900)
     driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
+    #https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/?filter=clear-all
     try:
-        driver.find_element_by_class_name('federation-provider-button.era.usa-button').click()
+        driver.find_element('class name', 'federation-provider-button.era.usa-button').click()
     except Exception as err:
         try:
-            driver.find_element_by_class_name('federation-provider-button.usa-button').click()
+            driver.find_element('class name', 'federation-provider-button.usa-button').click()
         except Exception as err:
             print('Failed both methods of logn.  Check the class name of the eRA Login button.')
     WebDriverWait(driver, long_delay).until(
                     EC.element_to_be_clickable((By.XPATH,'//*[@id="CredSelectorNotice"]/div/button'))
                 )
-    driver.find_element_by_id('USER').send_keys(login)
-    driver.find_element_by_id('PASSWORD').send_keys(password)
-    driver.find_element_by_xpath('//*[@id="CredSelectorNotice"]/div/button').click()
+    driver.find_element('id', 'USER').send_keys(login)
+    driver.find_element('id', 'PASSWORD').send_keys(password)
+    driver.find_element('xpath', '//*[@id="CredSelectorNotice"]/div/button').click()
     return driver
 
 
@@ -407,25 +426,32 @@ def nihms_login(login, password, long_delay):
     user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
     options.add_argument("user-agent="+user_agent)
     options.add_argument("--start-maximized")
-    options.headless = True
+    options.add_argument("--headless")
     # disable logging flags that Chrome raises to the cmd window
     options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    # disable logging flags or informational message around chromium using TensorFlow: INFO = 0, 
+    #  WARNING = 1, LOG_ERROR = 2, LOG_FATAL = 3.
+    options.add_argument("--log-level=2")
+    # trying to log flags around Chrome not reaching usb device error messages that don't impact this code base
+    options.add_argument("--ignore-certificate-errors")
+    options.add_argument("--disable-webgl")
+    # options.add_experimental_option('excludeSwitches', ['enable-logging'])
     driver = webdriver.Chrome(options = options)
     driver.set_window_size(1440, 900)
     driver.get('https://www.nihms.nih.gov/login/?next=/submission/')
     try:
-        driver.find_element_by_class_name('federation-provider-button.era.usa-button').click()
+        driver.find_element('class name', 'federation-provider-button.era.usa-button').click()
     except Exception as err:
         try:
-            driver.find_element_by_class_name('era').click()
+            driver.find_element('class name', 'era').click()
         except Exception as err:
             print('Failed both methods of login.  Check the class name of the eRA Login button.')        
     WebDriverWait(driver, long_delay).until(
                     EC.element_to_be_clickable((By.XPATH,'//*[@id="CredSelectorNotice"]/div/button'))
                 )
-    driver.find_element_by_id('USER').send_keys(login)
-    driver.find_element_by_id('PASSWORD').send_keys(password)
-    driver.find_element_by_xpath('//*[@id="CredSelectorNotice"]/div/button').click()
+    driver.find_element('id', 'USER').send_keys(login)
+    driver.find_element('id', 'PASSWORD').send_keys(password)
+    driver.find_element('xpath', '//*[@id="CredSelectorNotice"]/div/button').click()
     return driver
 
 
@@ -438,22 +464,22 @@ def log_into_era(login, password, long_delay):
     options.add_argument("--start-maximized")
     # disable logging flags that Chrome raises to the cmd window
     options.add_experimental_option('excludeSwitches', ['enable-logging'])
-    options.headless = True
+    options.add_argument("--headless")
     driver = webdriver.Chrome(options = options)
     driver.set_window_size(1440, 900)
     driver.get('https://public.era.nih.gov/commonsplus')
     WebDriverWait(driver, long_delay).until(EC.element_to_be_clickable((By.ID,'clc_submit')))
-    driver.find_element_by_id('clc_user').send_keys(login)
-    driver.find_element_by_id('clc_password').send_keys(password)
-    driver.find_element_by_id('clc_submit').click()
+    driver.find_element('id', 'clc_user').send_keys(login)
+    driver.find_element('id', 'clc_password').send_keys(password)
+    driver.find_element('id', 'clc_submit').click()
     return driver
 
 
 def clear_my_bib(driver, delay, logger):
     try:
-        select_all = driver.find_element_by_xpath('//*[@id="selectbar"]/div[1]/ul/li[1]/a')
+        select_all = driver.find_element('xpath', '//*[@id="selectbar"]/div[1]/ul/li[1]/a')
         driver.execute_script("arguments[0].click();", select_all)
-        delete_all = driver.find_element_by_id('delete-citations')
+        delete_all = driver.find_element('id', 'delete-citations')
         driver.execute_script("arguments[0].click();", delete_all)
         #time.sleep(delay)
         
@@ -486,7 +512,7 @@ def add_to_my_bib(driver, add_pubs, delay, long_delay, logger):
     except Exception as err:
         logger.warning('add-citation button did not load in time: %s' %err)
         print('unable to add citations, load time or page error: %s' %err)
-    #add_citation = driver.find_element_by_xpath('//*[@id="add-drop"]/li[1]/a')
+    #add_citation = driver.find_element('xpath', '//*[@id="add-drop"]/li[1]/a')
     driver.execute_script("arguments[0].click();", add_citation)
     try:
         search_field = WebDriverWait(driver, long_delay).until(
@@ -520,8 +546,9 @@ def add_to_my_bib(driver, add_pubs, delay, long_delay, logger):
             except Exception as err:
                 attempt += 1
                 time.sleep(2)
-        time.sleep(1)
-        checkboxes = driver.find_elements_by_css_selector("#search-results input[type='checkbox']")
+        #time.sleep(1)
+        checkboxes = driver.find_elements(By.CSS_SELECTOR, "#search-results input[type='checkbox']")
+        
         for checkbox in checkboxes:
             driver.execute_script("arguments[0].click();", checkbox)
             time.sleep(0.01)
@@ -540,7 +567,7 @@ def add_to_my_bib(driver, add_pubs, delay, long_delay, logger):
                 next_button = False
 
         if next_button == True:
-            driver.find_element_by_xpath('//*[@id="nextpage"]').click()
+            driver.find_element('xpath', '//*[@id="nextpage"]').click()
             attempt = 0
             while attempt < 3:
                 try:
@@ -561,22 +588,22 @@ def add_to_my_bib(driver, add_pubs, delay, long_delay, logger):
                             EC.visibility_of_element_located((By.ID,'add'))
                             )
             try:
-                driver.find_element_by_id('add').click()
+                driver.find_element('id', 'add').click()
             except Exception as err:
                 print('Failed to add publications. %s' %err)
             try:
                 add_success_msg = WebDriverWait(driver, long_delay).until(
                             EC.visibility_of_element_located((By.XPATH,'//*[@id="addblock"]/ul')))
-                print(driver.find_element_by_xpath('//*[@id="addblock"]/ul').get_attribute('innerText'))
+                print(driver.find_element('xpath', '//*[@id="addblock"]/ul').get_attribute('innerText'))
             except Exception as err:
                 print('Success message did not appear after clicking the add button. %s' %err)
     try:
             #WebDriverWait(driver, long_delay).until(
             #                EC.visibility_of_element_located((By.XPATH, '/html/body/div[4]/div[1]/button/span[1]'))
             #            )
-            #driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
-            #driver.find_element_by_xpath('/html/body/div[5]/div[1]/button/span[1]').click()
-        driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
+            #driver.find_element('xpath', '/html/body/div[4]/div[1]/button/span[1]').click()
+            #driver.find_element('xpath', '/html/body/div[5]/div[1]/button/span[1]').click()
+        driver.find_element('xpath', '/html/body/div[4]/div[1]/button/span[1]').click()
     except Exception as err:
         print('Failed to close the search for publications box after adding. %s' %err)
         driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
@@ -618,7 +645,7 @@ def scrape_citations(cite, count, grants, driver, delay, long_delay, logger):
         while attempt < 4:
             try:
                 # use updated xpath to open the awards dialog box
-                driver.find_element_by_xpath(awards_list).click()
+                driver.find_element('xpath', awards_list).click()
                 attempt = 4
             except Exception as err:
                 WebDriverWait(driver, long_delay).until(
@@ -640,14 +667,14 @@ def scrape_citations(cite, count, grants, driver, delay, long_delay, logger):
         
         
         # extract the text of the award dialog box
-        grant_dialog = driver.find_element_by_xpath('//*[@id="grant-dialog"]').get_attribute('outerHTML')
+        grant_dialog = driver.find_element('xpath', '//*[@id="grant-dialog"]').get_attribute('outerHTML')
         all_awards = re.findall('<div class="checked read-only.*?<p>(.*?) -', grant_dialog)
         all_awards_tag_text = re.findall('title="([A-Z].*?\\.)', grant_dialog)
         # Development check for loading time of awards info!!!!!!!!!!!!
         if len(all_awards) == 0:
             print('--May need to wait longer for awards to load, got 0 for pmid: ' + pmid)
             time.sleep(long_delay)
-            grant_dialog = driver.find_element_by_xpath('//*[@id="grant-dialog"]').get_attribute('outerHTML')
+            grant_dialog = driver.find_element('xpath', '//*[@id="grant-dialog"]').get_attribute('outerHTML')
             all_awards = re.findall('<div class="checked read-only.*?<p>(.*?) -', grant_dialog)
             all_awards_tag_text = re.findall('title="([A-Z].*?\\.)', grant_dialog)
             if len(all_awards) == 0:
@@ -672,7 +699,7 @@ def scrape_citations(cite, count, grants, driver, delay, long_delay, logger):
         attempt = 0
         while attempt < 4:
             try:
-                driver.find_element_by_id('cancel-association').click()
+                driver.find_element('id', 'cancel-association').click()
                 attempt = 4
             except Exception as err:
                 if attempt == 2:
@@ -686,7 +713,7 @@ def scrape_citations(cite, count, grants, driver, delay, long_delay, logger):
         if last_try == 'yes':
             time.sleep(long_delay)
             try:
-                driver.find_element_by_xpath('/html/body/div[4]/div[1]/button/span[1]').click()
+                driver.find_element('xpath', '/html/body/div[4]/div[1]/button/span[1]').click()
             except Exception as err:
                 print('Also may have failed to hit the x for pmid: ' + pmid)
     else:
@@ -795,7 +822,7 @@ def get_nihms(logger, pmids, login, password, delay, long_delay):
             if attempt == 3:
                 print('Failed to reach the NIHMS website, no data collected.')
     # click xpath for the NCBI access button - in case of errors, verify this xpath
-    #driver.find_element_by_xpath('//*[@id="react-app"]/div/div/div[3]/div[3]/a').click()
+    #driver.find_element('xpath', '//*[@id="react-app"]/div/div/div[3]/div[3]/a').click()
 
     # loop through pmids and get nihms status and progress details that are available
     for pmid in pmids:
@@ -821,7 +848,7 @@ def get_nihms(logger, pmids, login, password, delay, long_delay):
         attempt = 0
         while attempt < 4:
             try:
-                html = driver.find_element_by_class_name('usa-table-borderless').get_attribute('innerText')
+                html = driver.find_element('class name', 'usa-table-borderless').get_attribute('innerText')
                 attempt = 4
             except Exception as err:
                 if attempt < 2:
@@ -877,7 +904,8 @@ def icite(pmids):
                             'expected_citations_per_year',
                             'field_citation_rate', 'provisional', 'x_coord',
                             'y_coord', 'cited_by_clin', 'cited_by',
-                            'references', 'doi'])
+                            'references', 'doi', 'last_modified'])
+    icite_df_list = []
 
     for pmid_batch in pmids:
         response = requests.get(
@@ -886,11 +914,12 @@ def icite(pmids):
                         "pubs?pmids="+','.join(pmid_batch),
                     ]),
                 )
-        icite_df = icite_df.append(pd.DataFrame(response.json()['data']))
+        icite_df = pd.DataFrame(response.json()['data'])
+        icite_df_list.append(icite_df)
 
-        icite_df['pmid'] = icite_df['pmid'].astype(str)
-        icite_df['last_import'] = [datetime.today().strftime("%Y-%m-%d")]*len(icite_df['pmid'])
-
+    icite_df = pd.concat(icite_df_list)
+    icite_df['pmid'] = icite_df['pmid'].astype(str)
+    icite_df['last_import'] = [datetime.today().strftime("%Y-%m-%d")]*len(icite_df['pmid'])
     icite_df['cited_by_clin_count'] = icite_df['cited_by_clin'].apply(lambda x: len(x) if x!=None else 0)
 
     return icite_df
@@ -916,7 +945,7 @@ def altmetric(pmids):
            'cited_by_videos_count', 'cited_by_gplus_count', 'cited_by_rh_count',
            'handle', 'ordinal_number', 'cited_by_linkedin_count',
            'cited_by_pinners_count', 'arxiv_id', 'cited_by_qna_count',
-           'attribution', 'editors', 'pubdate', 'epubdate'])
+           'attribution', 'editors', 'pubdate', 'epubdate', 'dimensions_publication_id'])
 
     df_list=[]
     for pmid in pmids:
@@ -928,15 +957,15 @@ def altmetric(pmids):
             response = None
 
         if response != None:
-            temp = pd.concat([temp, pd.DataFrame.from_dict(response, orient='index').transpose()])
+            temp = pd.concat([temp, pd.DataFrame.from_dict(response, orient='index').fillna("").transpose()])
         else:
             #df = altmet_df
             #df = pd.DataFrame([[pmid, '']], columns = ['pmid', 'pmc'])
-            temp = pd.concat([temp, pd.DataFrame([{'pmid': pmid}])])
+            temp = pd.concat([temp, pd.DataFrame([{'pmid': pmid}])]).fillna("")
 
         df_list.append(temp)
-        time.sleep(2)
-    altmet_df = pd.concat(df_list, ignore_index=True)
+        time.sleep(1)
+    altmet_df = pd.concat(df_list, ignore_index=True).fillna("")
     altmet_df['pmid'] = altmet_df['pmid'].astype(str)
     altmet_df['last_import'] = [datetime.today().strftime("%Y-%m-%d")]*len(altmet_df['pmid'])
     if 'pmc' in altmet_df.columns:
@@ -951,20 +980,20 @@ def pacm_login(login, password):
     driver = webdriver.Chrome(options = options)
     driver.get('https://auth.nih.gov/CertAuthV2/forms/NIHPivOrFormLogin.aspx')
     driver.set_window_size(1440, 900)
-    id_box = driver.find_element_by_id('USER').send_keys(login)
-    pass_box = driver.find_element_by_id('PASSWORD').send_keys(password)
+    id_box = driver.find_element('id', 'USER').send_keys(login)
+    pass_box = driver.find_element('id', 'PASSWORD').send_keys(password)
     time.sleep(2)
-    login_button = driver.find_element_by_id('Image2').click()
+    login_button = driver.find_element('id', 'Image2').click()
 
     driver.get('https://www.ncbi.nlm.nih.gov/pmc/utils/pacm/')
 
-    driver.find_element_by_xpath('//*[@id="content"]/div/ul/li/a').click()
+    driver.find_element('xpath', '//*[@id="content"]/div/ul/li/a').click()
     driver.switch_to.frame('loginframe')
-    driver.find_element_by_xpath('//*[@id="era"]/img').click()
-    clear_text(driver.find_element_by_name('USER'))
-    login_box = driver.find_element_by_name('USER').send_keys(login)
-    pass_box = driver.find_element_by_name('PASSWORD').send_keys(password)
-    login_button = driver.find_element_by_xpath('//*[@id="Image2"]').click()
+    driver.find_element('xpath', '//*[@id="era"]/img').click()
+    clear_text(driver.find_element('name', 'USER'))
+    login_box = driver.find_element('name', 'USER').send_keys(login)
+    pass_box = driver.find_element('name', 'PASSWORD').send_keys(password)
+    login_button = driver.find_element('xpath', '//*[@id="Image2"]').click()
     return driver
 
 
@@ -1027,8 +1056,10 @@ def parse_pacm(driver, pacm_root, pmid, grant_list):
     return row
 
 
-def method_a_journal(pub_comp):
-    method_a_df = pd.read_csv('https://www.ncbi.nlm.nih.gov/pmc/front-page/NIH_PA_journal_list.csv', header=None)
+def method_a_journal(pub_comp, logger):
+    ## old method a url:https://www.ncbi.nlm.nih.gov/pmc/front-page/NIH_PA_journal_list.csv
+    ## updated to new url 6.24.2025
+    method_a_df = pd.read_csv('https://cdn.ncbi.nlm.nih.gov/pmc/pa/NIH_PA_journal_list.csv', header=None)
     method_a_df.columns = ['Journal', 'Journal_Short', 'pISSN', 'eISSN', 'Start_Date', 'End_Date']
     method_a_df['Start_Date'] = pd.to_datetime(method_a_df['Start_Date'])
     method_a_df['End_Date'] = pd.to_datetime(method_a_df['End_Date'])
@@ -1038,7 +1069,12 @@ def method_a_journal(pub_comp):
     method_a = []
     for row in range(len(pub_comp)):
         journal = pub_comp['journal_short'][row]
-        pub_date = pd.Timestamp(pub_comp['pub_date'][row])
+        try: 
+            pub_date = pd.Timestamp(pub_comp['pub_date'][row])
+        except Exception as err:
+            print(str(pub_comp['pmid'][row]))
+            logger.warning('Unable to update publication date; pmid: %s and date: %s; error: %s' 
+                            % (str(pub_comp['pmid'][row]), str(pub_comp['pub_date'][row]), str(err)))
         #print(method_a_df['Journal_Short'].str.match == journal)
         if sum(method_a_df['Journal_Short'].str.match(journal)) > 0:
             #start = method_a_df['Start_Date'][method_a_df['Journal_Short'] == journal]
@@ -1096,7 +1132,7 @@ def RC_update_status(pub_comp):
 
 def load_non_comp(report_id, rc_uri, rc_token, era_login, era_pass, bib_username, delay, long_delay, logger):
     project = Project(rc_uri, rc_token)
-    non_comp = project.export_reports(report_id=report_id, format='df')
+    non_comp = project.export_reports(report_id=report_id, format_type='df')
     non_comp.reset_index(level = 0, inplace = True)
     non_comp['pmid'] = non_comp['pmid'].astype(str)
 
@@ -1118,9 +1154,9 @@ def load_non_comp(report_id, rc_uri, rc_token, era_login, era_pass, bib_username
     #Check that id "bibname" text contains the config bibliography user so any delegated
     # bibliographies don't get cleared by accident - if username can't be loaded or 
     # doesn't match the name in the config file, quit and return the error message.
-    #driver.find_element_by_id('bibname').text
+    #driver.find_element('id', 'bibname').text
     try:
-        bibname = driver.find_element_by_id('bibname').text
+        bibname = driver.find_element('id', 'bibname').text
     except Exception as err:
         return 'While loading Non-Compliant list: Could not get a user name for the MyBibliography, quit out of caution.'
     if bib_username in bibname:
@@ -1185,7 +1221,7 @@ def check_argv(argv, config_start):
     return [db, timeframe]
 
 
-def query_pubmed(logger, variations, ncbi_api, rc_uri = 'None', rc_token = 'None'):
+def query_pubmed(logger, variations, ncbi_api, rc_uri = None, rc_token = None):
     ### Get pmids from pubmed for all grant variations
     # create variables for pubmed queries
     Entrez.email = "Your.Name.Here@example.org"
@@ -1233,15 +1269,18 @@ def query_pubmed(logger, variations, ncbi_api, rc_uri = 'None', rc_token = 'None
 
     ### Update pmid set if a REDCap project is being used to track publications
     if rc_token is not None and rc_uri is not None:
+        print('Checking for more publications from the tracking project. '+str(len(pmids))+' publications in the list so far.')
         old_pmids = []
         # get the full pmid list from the REDCap project
         project = Project(rc_uri, rc_token)
-        rc_pmids = project.export_records(fields=['pmid'], format='json')
-        for rc_pmid in rc_pmids:
-            old_pmids.append(rc_pmid['pmid'])
+        rc_pmids = project.export_records(fields=['pmid'], format_type='df')
+        #for rc_pmid in rc_pmids:
+        #    old_pmids.append(rc_pmid['pmid'])
+        old_pmids = [str(x) for x in list(rc_pmids.index)]
         new_pmids = list(pmids.difference(old_pmids))   # newly discovered pmids
         pmids.update(old_pmids)
         # date of first discovery
+        print('Got some more publications from the tracking project. '+str(len(pmids))+' publications in the list now.')
         if len(new_pmids) > 0:
             first_disc = [datetime.today().strftime("%Y-%m-%d")]*len(new_pmids)
             # create data frame of new_pmids with date of first dicovery and
@@ -1249,7 +1288,7 @@ def query_pubmed(logger, variations, ncbi_api, rc_uri = 'None', rc_token = 'None
             # create data frame using lists and import into redcap
             first_discovered_frame = pd.DataFrame(np.column_stack([new_pmids, first_disc]),
                                 columns=['pmid', 'first_discovered'])
-            response = project.import_records(first_discovered_frame)
+            response = project.import_records(first_discovered_frame, import_format='df')
 
     pmids = list(pmids)
     
@@ -1270,7 +1309,7 @@ def query_pubmed(logger, variations, ncbi_api, rc_uri = 'None', rc_token = 'None
     # loop over pmids list in batches to make dataframe of publication details
     pmids = pmids_checked
     count = len(pmids)
-    batchsize = 6000
+    batchsize = 8000
     pubs_frame = pd.DataFrame(columns=[
                               'pmid', 'pmcid', 'nihmsid',  'nctid', 'pub_title',
                               'authors', 'authors_lnames', 'authors_initials',
@@ -1282,7 +1321,7 @@ def query_pubmed(logger, variations, ncbi_api, rc_uri = 'None', rc_token = 'None
     for start in range(0,count, batchsize):
         end = min(count, start+batchsize)
         #!!!!!! Loop here for every 8000 or 9000 pmids...  !!!!!!!
-        pubs_frame = pubs_frame.append(summary(pmids[start:end], ncbi_api, variations))
+        pubs_frame = pubs_frame.append(summary(pmids[start:end], ncbi_api, variations, logger))
     #pubs_frame = summary(pmids, ncbi_api, variations)
     
 
@@ -1295,7 +1334,7 @@ def query_pubmed(logger, variations, ncbi_api, rc_uri = 'None', rc_token = 'None
     pubs_frame[pubs_frame == ''] = np.nan
 
     # check for method a journals
-    pubs_frame = method_a_journal(pubs_frame)
+    pubs_frame = method_a_journal(pubs_frame, logger)
 
     #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     pubs_frame = pubs_frame.rename(columns={'pmcid':'pmc_id', 'nihmsid':'nihms_id'})
@@ -1307,7 +1346,7 @@ def query_pubmed(logger, variations, ncbi_api, rc_uri = 'None', rc_token = 'None
 
     ### Update REDCap project if one is being used to track publications
     if rc_token is not None and rc_uri is not None:
-        success = project.import_records(pubs_frame)
+        success = project.import_records(pubs_frame, import_format='df')
 
     return
     ###################### END PubMed Summary Section
@@ -1332,7 +1371,7 @@ def query_pmc(logger, timeframe, variations, bib_username, delay, long_delay, nc
     if rc_token is not None and rc_uri is not None:
         # get the full pmid list from the REDCap project
         project = Project(rc_uri, rc_token)
-        pubs_frame = pd.DataFrame(project.export_records(fields=['pmid', 'pmc_id', 'pub_date'], format='json'))
+        pubs_frame = pd.DataFrame(project.export_records(fields=['pmid', 'pmc_id', 'pub_date'], format_type='json'))
 
     # get list of publications with during current grant cycle with no pmcid to check on
     # nihms status
@@ -1364,9 +1403,9 @@ def query_pmc(logger, timeframe, variations, bib_username, delay, long_delay, nc
                 )
         #Check that id "bibname" text contains the config bibliography user so any delegated
         # bibliographies don't get cleared by accident
-        #driver.find_element_by_id('bibname').text
+        #driver.find_element('id', 'bibname').text
         try:
-            bibname = driver.find_element_by_id('bibname').text
+            bibname = driver.find_element('id', 'bibname').text
         except Exception as err:
             logger.warning('Could not get a user name for the MyBibliography, quit out of caution: %s' % str(err))
             return
@@ -1386,9 +1425,9 @@ def query_pmc(logger, timeframe, variations, bib_username, delay, long_delay, nc
         driver.get('https://www.ncbi.nlm.nih.gov/myncbi/collections/mybibliography/')
         #Check that id "bibname" text contains the config bibliography user so any delegated
         # bibliographies don't get cleared by accident
-        #driver.find_element_by_id('bibname').text
+        #driver.find_element('id', 'bibname').text
         try:
-            bibname = driver.find_element_by_id('bibname').text
+            bibname = driver.find_element('id', 'bibname').text
         except Exception as err:
             logger.warning('Could not get a user name for the MyBibliography, quit out of caution: %s' % str(err))
             return
@@ -1420,13 +1459,13 @@ def query_pmc(logger, timeframe, variations, bib_username, delay, long_delay, nc
                 WebDriverWait(driver, long_delay).until(
                             EC.presence_of_element_located((By.XPATH,'//*[@id="pager1"]/ul/li[4]/a'))
                         )
-                next_button = driver.find_element_by_xpath('//*[@id="pager1"]/ul/li[4]/a').get_attribute('onclick')
+                next_button = driver.find_element('xpath', '//*[@id="pager1"]/ul/li[4]/a').get_attribute('onclick')
             except Exception as err:
                 next_button = 'return false;'
-            if next_button == 'return false;' or driver.find_element_by_xpath('//*[@id="pager2"]/ul/li/span').get_attribute('innerText') == '1':
+            if next_button == 'return false;' or driver.find_element('xpath','//*[@id="pager2"]/ul/li/span').get_attribute('innerText') == '1':
                 scrape_more = False
                 print('**!!looks like no next button on publication number:' + str(end) + ' with ' + str(len(pmc_rows)) + ' rows and last pmid logged is ' + str(pmc_rows[-1:]))
-            else: driver.find_element_by_xpath('//*[@id="pager1"]/ul/li[4]/a').click()
+            else: driver.find_element('xpath', '//*[@id="pager1"]/ul/li[4]/a').click()
 
         #time.sleep(delay)
     driver.close()
@@ -1446,7 +1485,7 @@ def query_pmc(logger, timeframe, variations, bib_username, delay, long_delay, nc
     
     ### Update REDCap project if one is being used to track publications
     if rc_token is not None and rc_uri is not None:
-        success = project.import_records(pmc_frame)
+        success = project.import_records(pmc_frame, import_format='df')
         
     return
     ###################### END PMC Section
@@ -1470,7 +1509,7 @@ def pmc_add_non_compliant(logger, timeframe, variations, bib_username, delay, lo
     if rc_token is not None and rc_uri is not None:
         # get the full pmid list from the REDCap project
         project = Project(rc_uri, rc_token)
-        pubs_frame = pd.DataFrame(project.export_records(fields=['pmid', 'pmc_id', 'pub_date'], format='json'))
+        pubs_frame = pd.DataFrame(project.export_records(fields=['pmid', 'pmc_id', 'pub_date'], format_type='json'))
 
     # get list of publications with during current grant cycle with no pmcid to check on
     # nihms status
@@ -1499,9 +1538,9 @@ def pmc_add_non_compliant(logger, timeframe, variations, bib_username, delay, lo
         #Check that id "bibname" text contains the config bibliography user so any delegated
         # bibliographies don't get cleared by accident - if username can't be loaded or 
         # doesn't match the name in the config file, quit and return the error message.
-        #driver.find_element_by_id('bibname').text
+        #driver.find_element('id', 'bibname').text
         try:
-            bibname = driver.find_element_by_id('bibname').text
+            bibname = driver.find_element('id', 'bibname').text
         except Exception as err:
             return 'While loading Non-Compliant list: Could not get a user name for the MyBibliography, quit out of caution.'
         if bib_username in bibname:
@@ -1517,7 +1556,7 @@ def query_nihms(logger, timeframe, delay, long_delay, ncbi_creds, ncbi_pass, rc_
     if rc_token is not None and rc_uri is not None:
         # get the full pmid list from the REDCap project
         project = Project(rc_uri, rc_token)
-        pubs_frame = pd.DataFrame(project.export_records(fields=['pmid', 'pmc_id', 'pmc_status', 'pub_date'], format='json'))
+        pubs_frame = pd.DataFrame(project.export_records(fields=['pmid', 'pmc_id', 'pmc_status', 'pub_date'], format_type='json'))
 
     # get list of publications with during current grant cycle with no pmcid to check on
     # nihms status
@@ -1557,7 +1596,7 @@ def query_nihms(logger, timeframe, delay, long_delay, ncbi_creds, ncbi_pass, rc_
     ### Update REDCap project if one is being used to track publications
     if rc_token is not None and rc_uri is not None:
         nihms_frame = RC_update_status(nihms_frame)
-        success = project.import_records(nihms_frame)
+        success = project.import_records(nihms_frame, import_format='df')
     return
 
 
@@ -1565,7 +1604,7 @@ def query_icite(logger, timeframe, rc_uri, rc_token):
     if rc_token is not None and rc_uri is not None:
         # get the full pmid list from the REDCap project
         project = Project(rc_uri, rc_token)
-        pubs_frame = pd.DataFrame(project.export_records(fields=['pmid', 'pub_date'], format='json'))
+        pubs_frame = pd.DataFrame(project.export_records(fields=['pmid', 'pub_date'], format_type='json'))
 
     # get list of publications with during current grant cycle with no pmcid to check on
     # nihms status
@@ -1593,7 +1632,7 @@ def query_icite(logger, timeframe, rc_uri, rc_token):
                                 'icite_field_citation_rate', 'icite_provisional',
                                 'icite_x_coord', 'icite_y_coord',
                                 'icite_cited_by_clin', 'icite_cited_by',
-                                'icite_references', 'icite_doi',
+                                'icite_references', 'icite_doi', 'icite_last_modified',
                                 'icite_last_import_date',
                                 'icite_cited_by_clin_count']
     
@@ -1602,7 +1641,7 @@ def query_icite(logger, timeframe, rc_uri, rc_token):
     
     ### Update REDCap project if one is being used to track publications
     if rc_token is not None and rc_uri is not None:
-        success = project.import_records(icite_df)
+        success = project.import_records(icite_df, import_format='df')
         
     return
 
@@ -1611,7 +1650,7 @@ def query_altmetric(logger, timeframe, rc_uri, rc_token):
     if rc_token is not None and rc_uri is not None:
         # get the full pmid list from the REDCap project
         project = Project(rc_uri, rc_token)
-        pubs_frame = pd.DataFrame(project.export_records(fields=['pmid', 'pub_date'], format='json'))
+        pubs_frame = pd.DataFrame(project.export_records(fields=['pmid', 'pub_date'], format_type='json'))
 
     # get list of publications with during current grant cycle with no pmcid to check on
     # nihms status
@@ -1651,7 +1690,7 @@ def query_altmetric(logger, timeframe, rc_uri, rc_token):
             'altmetric_cited_by_linkedin_count', 'altmetric_cited_by_pinners_count',
             'altmetric_arxiv_id', 'altmetric_cited_by_qna_count',
             'altmetric_attribution', 'altmetric_editors', 'altmetric_pubdate', 'altmetric_epubdate',
-            'altmetric_last_import_date']
+            'altmetric_dimensions_publication_id', 'altmetric_last_import_date']
     altmetric_df['pmid'] = altmetric_df['altmetric_pmid']
     
     # write a copy to a .csv file
@@ -1659,6 +1698,6 @@ def query_altmetric(logger, timeframe, rc_uri, rc_token):
     
     ### Update REDCap project if one is being used to track publications
     if rc_token is not None and rc_uri is not None:
-        success = project.import_records(altmetric_df)
+        success = project.import_records(altmetric_df, import_format='df')
         
     return

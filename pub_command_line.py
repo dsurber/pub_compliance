@@ -2,6 +2,7 @@ import sys # needed to accept args from command line
 import time
 import logging
 from datetime import datetime
+import warnings
 
 import config
 import pub_comp_lib
@@ -34,6 +35,8 @@ import pub_comp_lib
 #    print(sys.argv[i], end = " ")
 ### End Dev check
 
+# Suppress FutureWarning messages
+#warnings.simplefilter(action='ignore', category=FutureWarning)
 
 start_time = time.time()
 
