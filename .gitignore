@@ -1,5 +1,10 @@
 # Config file with api keys and tokens
 /config.py
+/config_bircwh.py
+/chromedriver.exe
+
+# Cache files
+*.pyc
 
 # Debugging log
 *.log

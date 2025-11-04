@@ -893,18 +893,24 @@ def get_nihms(logger, pmids, login, password, delay, long_delay):
 
 
 def icite(pmids):
-    pmids = [pmids[i:i+900] for i in range(0, len(pmids), 900)]
+    batch_size = 400
+    pmids = [pmids[i:i+batch_size] for i in range(0, len(pmids), batch_size)]
     # initialize the icite dataframe so it can be appended by the batched loops
-    icite_df = pd.DataFrame(columns = ['pmid', 'year', 'title', 'authors',
-                            'journal', 'is_research_article',
-                            'relative_citation_ratio', 'nih_percentile',
-                            'human', 'animal', 'molecular_cellular', 'apt',
-                            'is_clinical', 'citation_count',
-                            'citations_per_year',
-                            'expected_citations_per_year',
-                            'field_citation_rate', 'provisional', 'x_coord',
-                            'y_coord', 'cited_by_clin', 'cited_by',
-                            'references', 'doi', 'last_modified'])
+    icite_df = pd.DataFrame(columns = ['pmid',  'authors', 'doi', 'id', 'title', 
+                                                'animal',   'apt',  'human', 
+                                                'citedByPmidsByYear', 
+                                                'citedByClinicalArticle', 'year', 
+                                                'journal', 'is_research_article', 
+                                                'citation_count',   
+                                                'field_citation_rate',  
+                                                'expected_citations_per_year',  
+                                                'citations_per_year',   
+                                                'relative_citation_ratio',  
+                                                'nih_percentile',   
+                                                'molecular_cellular', 'x_coord',  
+                                                'y_coord', 'is_clinical', 
+                                                'cited_by_clin', 'cited_by', 
+                                                'references', 'provisional'])
     icite_df_list = []
 
     for pmid_batch in pmids:
@@ -920,6 +926,7 @@ def icite(pmids):
     icite_df = pd.concat(icite_df_list)
     icite_df['pmid'] = icite_df['pmid'].astype(str)
     icite_df['last_import'] = [datetime.today().strftime("%Y-%m-%d")]*len(icite_df['pmid'])
+    icite_df['cited_by_clin'] = icite_df['cited_by_clin'].replace({np.nan: None})
     icite_df['cited_by_clin_count'] = icite_df['cited_by_clin'].apply(lambda x: len(x) if x!=None else 0)
 
     return icite_df
@@ -964,6 +971,7 @@ def altmetric(pmids):
             temp = pd.concat([temp, pd.DataFrame([{'pmid': pmid}])]).fillna("")
 
         df_list.append(temp)
+        #df_list = pd.concat(df_list, temp)
         time.sleep(1)
     altmet_df = pd.concat(df_list, ignore_index=True).fillna("")
     altmet_df['pmid'] = altmet_df['pmid'].astype(str)
@@ -1321,7 +1329,8 @@ def query_pubmed(logger, variations, ncbi_api, rc_uri = None, rc_token = None):
     for start in range(0,count, batchsize):
         end = min(count, start+batchsize)
         #!!!!!! Loop here for every 8000 or 9000 pmids...  !!!!!!!
-        pubs_frame = pubs_frame.append(summary(pmids[start:end], ncbi_api, variations, logger))
+        #pubs_frame = pubs_frame.append(summary(pmids[start:end], ncbi_api, variations, logger))
+        pubs_frame = pd.concat([pubs_frame, summary(pmids[start:end], ncbi_api, variations, logger)])
     #pubs_frame = summary(pmids, ncbi_api, variations)
     
 
@@ -1621,20 +1630,18 @@ def query_icite(logger, timeframe, rc_uri, rc_token):
     #Dev Check!!
 
     icite_df = icite(pmids)
-    icite_df.columns = ['pmid', 'icite_year', 'icite_title', 'icite_authors',
-                                'icite_journal', 'icite_is_research_article',
-                                'icite_relative_citation_ratio',
-                                'icite_nih_percentile', 'icite_human',
-                                'icite_animal', 'icite_molecular_cellular',
-                                'icite_apt', 'icite_is_clinical',
-                                'icite_citation_count', 'icite_citations_per_year',
-                                'icite_expected_citations_per_year',
-                                'icite_field_citation_rate', 'icite_provisional',
-                                'icite_x_coord', 'icite_y_coord',
-                                'icite_cited_by_clin', 'icite_cited_by',
-                                'icite_references', 'icite_doi', 'icite_last_modified',
-                                'icite_last_import_date',
-                                'icite_cited_by_clin_count']
+    icite_df.columns = ['pmid',  'icite_authors', 'icite_doi', 'icite_id',
+                                 'icite_title', 'icite_animal', 'icite_apt', 'icite_human',  
+                                 'icite_citedbypmidsbyyear', 'icite_citedbyclinicalarticle', 
+                                 'icite_year', 'icite_journal', 'icite_is_research_article',
+                                 'icite_citation_count', 'icite_field_citation_rate',
+                                 'icite_expected_citations_per_year', 'icite_citations_per_year',
+                                 'icite_relative_citation_ratio', 'icite_nih_percentile',
+                                 'icite_molecular_cellular', 'icite_x_coord', 'icite_y_coord',
+                                 'icite_is_clinical', 'icite_cited_by_clin', 'icite_cited_by',
+                                 'icite_references', 'icite_provisional', 'icite_last_import_date',
+                                 'icite_cited_by_clin_count']
+
     
     # write a copy to a .csv file
     icite_df.to_csv('dev-icite_query_output.csv', index=False)
