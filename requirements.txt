@@ -68,7 +68,7 @@ pyaltmetric==0.2.0
 pycap==2.4.0
 pycparser @ file:///tmp/build/80754af9/pycparser_1636541352034/work
 Pygments @ file:///C:/b/abs_fay9dpq4n_/croot/pygments_1684279990574/work
-PyMuPDF==1.26.6
+PyMuPDF==1.26.7
 PyPDF2==3.0.1
 pyrsistent @ file:///C:/ci_310/pyrsistent_1642117077485/work
 PySocks==1.7.1
