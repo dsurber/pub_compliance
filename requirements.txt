@@ -24,7 +24,7 @@ entrypoints @ file:///C:/ci/entrypoints_1649926676279/work
 exceptiongroup==1.1.3
 executing @ file:///opt/conda/conda-bld/executing_1646925071911/work
 fastjsonschema @ file:///C:/Users/BUILDE~1/AppData/Local/Temp/abs_ebruxzvd08/croots/recipe/python-fastjsonschema_1661376484940/work
-h11==0.14.0
+h11==0.16.0
 idna @ file:///C:/b/abs_bdhbebrioa/croot/idna_1666125572046/work
 ipykernel @ file:///C:/b/abs_07rkft_vaz/croot/ipykernel_1691121700587/work
 ipython @ file:///C:/b/abs_254uk73z5b/croot/ipython_1691532131313/work
