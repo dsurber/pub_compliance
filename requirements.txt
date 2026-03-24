@@ -80,7 +80,7 @@ pywinpty @ file:///C:/b/abs_73vshmevwq/croot/pywinpty_1677609966356/work/target/
 pyzmq @ file:///C:/ci/pyzmq_1657616000714/work
 regex==2023.8.8
 reportlab==4.4.5
-requests==2.31.0
+requests==2.32.4
 selenium==4.11.2
 semantic-version==2.10.0
 Send2Trash @ file:///tmp/build/80754af9/send2trash_1632406701022/work
