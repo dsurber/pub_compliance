@@ -58,7 +58,7 @@ pandas @ file:///C:/b/abs_b9kefbuby2/croot/pandas_1677835593760/work
 pandocfilters @ file:///opt/conda/conda-bld/pandocfilters_1643405455980/work
 parso @ file:///opt/conda/conda-bld/parso_1641458642106/work
 pickleshare @ file:///tmp/build/80754af9/pickleshare_1606932040724/work
-pillow==12.0.0
+pillow==12.1.1
 platformdirs @ file:///C:/b/abs_b6z_yqw_ii/croot/platformdirs_1692205479426/work
 prometheus-client @ file:///C:/Windows/TEMP/abs_ab9nx8qb08/croots/recipe/prometheus_client_1659455104602/work
 prompt-toolkit @ file:///C:/b/abs_6coz5_9f2s/croot/prompt-toolkit_1672387908312/work
