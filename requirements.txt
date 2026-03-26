@@ -96,7 +96,7 @@ traitlets @ file:///C:/b/abs_e5m_xjjl94/croot/traitlets_1671143896266/work
 trio==0.22.2
 trio-websocket==0.10.3
 typing_extensions==4.15.0
-urllib3==2.0.4
+urllib3==2.6.3
 wcwidth @ file:///Users/ktietz/demo/mc3/conda-bld/wcwidth_1629357192024/work
 webencodings==0.5.1
 websocket-client @ file:///C:/ci_310/websocket-client_1642093970919/work
