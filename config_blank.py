@@ -26,6 +26,7 @@ ncbi_api = ""
 
 # URL for NIH table of Method A Publishers 
 method_a = "http://www.ncbi.nlm.nih.gov/pmc/front-page/NIH_PA_journal_list.csv"
+# new list? https://cdn.ncbi.nlm.nih.gov/pmc/home/jlist.csv - need to test
 
 # PACM Access?
 pacm = 'n'

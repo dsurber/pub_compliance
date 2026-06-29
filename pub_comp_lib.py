@@ -1277,7 +1277,7 @@ def query_pubmed(logger, variations, ncbi_api, rc_uri = None, rc_token = None):
 
     ### Update pmid set if a REDCap project is being used to track publications
     if rc_token is not None and rc_uri is not None:
-        print('Checking for more publications from the tracking project. '+str(len(pmids))+' publications in the list so far.')
+        print('Searched PubMed with grants list in config file. '+str(len(pmids))+' publications found. Checking for additional publications from the tracking project to update.')
         old_pmids = []
         # get the full pmid list from the REDCap project
         project = Project(rc_uri, rc_token)
@@ -1288,7 +1288,7 @@ def query_pubmed(logger, variations, ncbi_api, rc_uri = None, rc_token = None):
         new_pmids = list(pmids.difference(old_pmids))   # newly discovered pmids
         pmids.update(old_pmids)
         # date of first discovery
-        print('Got some more publications from the tracking project. '+str(len(pmids))+' publications in the list now.')
+        print('Got some more publications from the tracking project. '+str(len(pmids))+' publications in the update list now.')
         if len(new_pmids) > 0:
             first_disc = [datetime.today().strftime("%Y-%m-%d")]*len(new_pmids)
             # create data frame of new_pmids with date of first dicovery and
@@ -1631,7 +1631,7 @@ def query_icite(logger, timeframe, rc_uri, rc_token):
 
     icite_df = icite(pmids)
     icite_df.columns = ['pmid',  'icite_authors', 'icite_doi', 'icite_id',
-                                 'icite_title', 'icite_animal', 'icite_apt', 'icite_human',  
+                                 'icite_title', 'icite_animal', 'icite_human', 'icite_apt', 
                                  'icite_citedbypmidsbyyear', 'icite_citedbyclinicalarticle', 
                                  'icite_year', 'icite_journal', 'icite_is_research_article',
                                  'icite_citation_count', 'icite_field_citation_rate',
@@ -1641,7 +1641,6 @@ def query_icite(logger, timeframe, rc_uri, rc_token):
                                  'icite_is_clinical', 'icite_cited_by_clin', 'icite_cited_by',
                                  'icite_references', 'icite_provisional', 'icite_last_import_date',
                                  'icite_cited_by_clin_count']
-
     
     # write a copy to a .csv file
     icite_df.to_csv('dev-icite_query_output.csv', index=False)
